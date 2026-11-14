@@ -32,10 +32,12 @@ body {
   color-scheme: dark;
 }
 
+/* the column grows with the window height so the board gets bigger on big screens,
+   but never wider than it is tall (header + clock need roughly 260px) */
 main {
   position: relative;
   z-index: 1;
-  max-width: 520px;
+  max-width: clamp(520px, calc(100vh - 260px), 820px);
   margin: 0 auto;
   padding: 24px 16px 48px;
 }
@@ -69,10 +71,9 @@ h1 {
   display: flex;
   gap: 10px;
   width: 100%;
-  max-width: min(100%, 72vh);
   margin: 0 auto;
 }
-#boardbox { position: relative; flex: 1; min-width: 0; }
+#boardbox { position: relative; flex: 1; min-width: 0; container-type: inline-size; }
 
 #board {
   display: grid;
@@ -90,7 +91,7 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(18px, calc(min(100vw, 72vh) / 8 * .7), 48px);
+  font-size: clamp(18px, 8.7cqw, 90px);     /* cqw = percent of the board's width, so pieces grow with it */
   line-height: 1;
   cursor: pointer;
 }
@@ -371,8 +372,8 @@ button.ghost:hover { background: #ffffff38; }
 .yuzu .core  { fill: #fffbe0; }
 .yuzu .leaf  { fill: #6fc23b; stroke: #1b1020; stroke-width: 4; stroke-linejoin: round; }
 .yuzu .shine { fill: none; stroke: #fffbe0; stroke-width: 5; stroke-linecap: round; opacity: .85; }
-.sour .rind { fill: #b6c46a; }
-.sour .slice.on { fill: #d9d97a; }
+.sour .rind { fill: #7fb530; }
+.sour .slice.on { fill: #a8d44a; }
 
 /* fruit on the final screen */
 #final-fruit { margin: 0 0 4px; }
@@ -499,3 +500,85 @@ button.ghost:hover { background: #ffffff38; }
   text-shadow: none;
 }
 @media (prefers-reduced-motion: reduce) { #clockfill.low { animation: none; } }
+
+
+/* ---------- feast: fruit falling into the capybara ---------- */
+.flyfruit { position: fixed; left: 0; top: 0; width: 56px; z-index: 30; pointer-events: none; filter: drop-shadow(0 3px 0 #1b1020); }
+.flyfruit .yuzu { width: 100%; display: block; }
+.splat {
+  position: fixed; z-index: 29; pointer-events: none;
+  width: 90px; height: 50px; border-radius: 50%;
+  background: radial-gradient(#b6d94a, #6a8f1f 70%, transparent 72%);
+}
+/* the individual scale / rotate properties stack on top of the transform that centres the capybara */
+#cap.chomp  { animation: chomp .28s ease-out; }
+#cap.recoil { animation: recoil .45s ease-out; }
+@keyframes chomp  { 40% { scale: 1.1 .9; } }
+@keyframes recoil { 25% { rotate: -9deg; translate: -10px 0; } 60% { rotate: 4deg; } }
+
+/* ---------- the 800 / -800 screens ---------- */
+#special {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 20px; text-align: center; overflow: hidden;
+  animation: pop .5s cubic-bezier(.3, 1.4, .5, 1);
+}
+#special.gold  { background: radial-gradient(circle at 50% 40%, #ffe45c, #f0a200 70%, #8a4b00); }
+#special.gloom { background: radial-gradient(circle at 50% 40%, #2a3050, #0b0e1c 75%); }
+#special .rays {
+  position: absolute; left: 50%; top: 40%; width: 220vmax; height: 220vmax;
+  margin: -110vmax 0 0 -110vmax; pointer-events: none;
+  background: repeating-conic-gradient(#fff6 0 7deg, transparent 7deg 20deg);
+  animation: spin 24s linear infinite;
+}
+#special.gloom .rays { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#special .skyfx { position: absolute; inset: 0; pointer-events: none; }
+.confetti { position: absolute; top: 0; width: 34px; }
+.confetti .yuzu { width: 100%; display: block; }
+.drop { position: absolute; top: 0; width: 2px; height: 26px; background: #9cc4ff88; }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.spcap {
+  position: relative; width: min(46vw, 220px);
+  background: url(assets/capyking.webp) no-repeat; background-size: 400% 300%;
+  filter: drop-shadow(0 6px 4px #0008);
+}
+#special.gold .spcap { animation: hop .5s ease-in-out infinite alternate; }
+@keyframes hop { to { transform: translateY(-18px); } }
+.spbig, .spsub, .spnote { position: relative; }
+.spbig {
+  font-size: clamp(5rem, 26vw, 10rem); font-weight: 800; line-height: 1; letter-spacing: -.04em;
+  color: #fff; -webkit-text-stroke: 12px #05060c; paint-order: stroke fill; text-shadow: 0 8px 0 #05060c;
+}
+#special.gold .spbig { color: #fff3b0; }
+#special.gloom .spbig { color: #9cc4ff; }
+.spsub {
+  font-size: clamp(1.6rem, 6vw, 2.4rem); font-weight: 800; color: #fff;
+  -webkit-text-stroke: 9px #05060c; paint-order: stroke fill; text-shadow: 0 5px 0 #05060c;
+  transform: rotate(-2deg);
+}
+.spnote { max-width: 26em; color: #fff; font-weight: 600; text-shadow: 0 2px 6px #000a; }
+#special-ok { position: relative; margin-top: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  #cap.chomp, #cap.recoil, #special .rays, #special.gold .spcap { animation: none; }
+}
+
+/* ---------- mute button ---------- */
+#mute {
+  position: fixed; top: 12px; right: 12px; z-index: 50;
+  width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  font-size: 1.3rem; line-height: 1;
+  background: #ffffff22; color: #fff; border: 2px solid #ffffff44;
+}
+#mute:hover { background: #ffffff38; }
+
+/* summary panel fades away while the fruits fall so you can see the capybara */
+#final { transition: opacity .4s; }
+main.summary { max-width: 520px; }
+#final.feasting { opacity: 0; pointer-events: none; }
+
+/* dev panel (only with ?dev) */
+#devpanel { position: fixed; left: 8px; top: 8px; z-index: 60; display: flex; gap: 6px; align-items: center;
+  background: #000a; padding: 6px 8px; border-radius: 10px; color: #fff; font-size: .8rem; }
+#devpanel button { padding: 4px 10px; font-size: .8rem; }

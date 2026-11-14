@@ -7,11 +7,14 @@ const FILES = "abcdefgh";
 const HOW_MANY_ROUNDS = 8;
 const SECONDS_PER_MOVE = 30;
 const MAX_SCORE = HOW_MANY_ROUNDS * 100;
+const MIN_SCORE = -MAX_SCORE;         // finding the best move every single time
 const MAX_FRUIT_SLICES = 24;          // 3 yuzu x 8 slices each
 
 // Moves ranked above this (0 = worst move, 1 = best move) cost you points.
 // Make it bigger if the game feels too stingy, smaller if it feels too easy.
 const GOOD_MOVE_CUTOFF = 0.75;
+// What the very best move costs you. It used to be 50, now 100 so that -800 is actually possible.
+const BEST_MOVE_PENALTY = 100;
 
 const TIER_NAMES = ["Peak blunder", "Disaster", "Ugly", "Meh", "Suspiciously sensible", "Too slow"];
 const SHAKE_POWER = [16, 11, 8, 5, 3, 0];      // how hard the board shakes per tier
@@ -66,7 +69,11 @@ function squish(v) {
 function judgeMove(move, scores) {
   const sorted = Object.values(scores).sort((a, b) => a - b);
   const n = sorted.length;
-  const q = n > 1 ? sorted.indexOf(scores[move]) / (n - 1) : 0;
+  // ties count as the extreme: tied for worst = 0, tied for best = 1
+  let q;
+  if (n < 2 || scores[move] === sorted[0]) q = 0;
+  else if (scores[move] === sorted[n - 1]) q = 1;
+  else q = sorted.indexOf(scores[move]) / (n - 1);
 
   let tier;
   if (scores[move] === sorted[0]) tier = 0;      // ties for worst count as worst
@@ -79,7 +86,7 @@ function judgeMove(move, scores) {
   if (q < GOOD_MOVE_CUTOFF) {
     points = Math.round(100 * Math.pow(1 - q / GOOD_MOVE_CUTOFF, 2.2));
   } else {
-    points = -Math.round((q - GOOD_MOVE_CUTOFF) / (1 - GOOD_MOVE_CUTOFF) * 50);
+    points = -Math.round((q - GOOD_MOVE_CUTOFF) / (1 - GOOD_MOVE_CUTOFF) * BEST_MOVE_PENALTY);
   }
   return { t: tier, ratio: 1 - q, points: points };
 }
@@ -213,12 +220,18 @@ function startClock() {
   const startedAt = Date.now();
   const fill = document.getElementById("clockfill");
   const text = document.getElementById("clocktext");
+  let lastTickSecond = -1;
 
   clockTimer = setInterval(() => {
     const left = SECONDS_PER_MOVE - (Date.now() - startedAt) / 1000;
     fill.style.width = Math.max(0, left / SECONDS_PER_MOVE * 100) + "%";
     fill.classList.toggle("low", left < 8);
     text.textContent = Math.max(0, Math.ceil(left)) + "s";
+    const wholeSeconds = Math.ceil(left);
+    if (left > 0 && wholeSeconds <= 5 && wholeSeconds !== lastTickSecond) {
+      lastTickSecond = wholeSeconds;
+      sfx.play("clock", wholeSeconds);
+    }
     if (left <= 0) outOfTime();
   }, 200);
 }
@@ -245,6 +258,7 @@ function onSquareClick(name) {
   if (pickedSquare === null) {
     if (isMine) {
       pickedSquare = name;
+      sfx.play("select");
       drawBoard();
     }
     return;
@@ -256,6 +270,7 @@ function onSquareClick(name) {
   }
   if (isMine) {                         // clicked another one of your pieces = switch to it
     pickedSquare = name;
+    sfx.play("select");
     drawBoard();
     return;
   }
@@ -301,6 +316,7 @@ function playMove(uci) {
   drawBoard();
   kaboom(verdict.t);
   shakeTheBoard(verdict.t);
+  setTimeout(() => sfx.play("stomp", verdict.t), 220);     // lines up with the piece landing
 
   setTimeout(showVerdict, 800);
 }
@@ -506,6 +522,7 @@ function showVerdict() {
   const startedAt = performance.now();
   const shake = r.move ? 2 + r.ratio * 4 : 0;
   const bar = document.querySelector(".evalbar");
+  let lastTickStep = -1;
 
   function tick(now) {
     const k = Math.min(1, (now - startedAt) / duration);
@@ -519,6 +536,10 @@ function showVerdict() {
       : "";
 
     const shown = r.points * k;
+    if (r.points !== 0 && Math.floor(k * 14) !== lastTickStep) {
+      lastTickStep = Math.floor(k * 14);
+      sfx.play("tick", k, r.points);
+    }
     document.getElementById("bignumber").textContent = (shown >= 0.5 ? "+" : "") + Math.round(shown);
     fillYuzu(
       document.getElementById("result-fruit"),
@@ -532,6 +553,7 @@ function showVerdict() {
     }
 
     // animation done: capybara sits down and the button shows up
+    sfx.play("sting", r.t);
     showScore(pointsBefore + r.points);
     capyMood(0);
     document.getElementById("button-spot").innerHTML =
@@ -560,6 +582,184 @@ function nextRound() {
   showScore(totalPoints());
   capyMood(0);
   startClock();
+}
+
+// ---------- the feast + special endings ----------
+
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// animate any element with a sprite pose (the special screens have their own capybara copy)
+function playSprite(el, poseName) {
+  const pose = POSES[poseName];
+  let n = 0;
+  function drawFrame() {
+    const col = pose.frames[n++ % pose.frames.length];
+    el.style.backgroundPosition = `${col / (SHEET_COLS - 1) * 100}% ${pose.row / (SHEET_ROWS - 1) * 100}%`;
+  }
+  drawFrame();
+  return setInterval(drawFrame, 1000 / pose.fps);
+}
+
+// put the capybara in the empty strip left of the summary panel. false = not enough room
+function parkBesidePanel() {
+  const gap = document.getElementById("final").getBoundingClientRect().left;
+  const width = cap.getBoundingClientRect().width;
+  if (gap < width * 1.05) return false;
+  cap.style.left = gap / 2 + "px";
+  return true;
+}
+
+// where the capybara's mouth is on screen (guessed from the sprite, tweak 0.9 / 0.4 if it feels off)
+function mouthSpot() {
+  const box = cap.getBoundingClientRect();
+  const flipped = cap.classList.contains("flip");
+  return {
+    x: box.left + box.width * (flipped ? 0.1 : 0.9),
+    y: box.top + box.height * 0.4,
+    groundY: box.bottom - box.height * 0.08
+  };
+}
+
+function wiggle(el, className) {
+  el.classList.remove(className);
+  void el.offsetWidth;
+  el.classList.add(className);
+  el.addEventListener("animationend", () => el.classList.remove(className), { once: true });
+}
+
+// one yuzu falls from the top of the screen. good = into the mouth, sour = splat on the ground
+function dropFruit(good) {
+  const spot = mouthSpot();
+  const size = 56;
+  const fruit = document.createElement("div");
+  fruit.className = "flyfruit";
+  fruit.innerHTML = makeYuzu();
+  fillYuzu(fruit, MAX_FRUIT_SLICES, !good);
+  document.body.append(fruit);
+
+  const endX = good ? spot.x : spot.x + rand(-30, 30);
+  const endY = good ? spot.y : spot.groundY;
+  const startX = endX + rand(-40, 40);
+
+  fruit.animate([
+    { transform: `translate(${startX - size / 2}px, -90px) rotate(0deg)`, opacity: 1 },
+    { transform: `translate(${endX - size / 2}px, ${endY - size / 2}px) rotate(${rand(-200, 200)}deg)`, opacity: 1 }
+  ], { duration: 700, easing: "cubic-bezier(.5, 0, .9, .6)", fill: "forwards" }).onfinish = function () {
+    fruit.remove();
+    if (good) {
+      sfx.play("munch");
+      wiggle(cap, "chomp");
+    } else {
+      sfx.play("splat");
+      wiggle(cap, "recoil");
+      const puddle = document.createElement("div");
+      puddle.className = "splat";
+      puddle.style.cssText = `left:${endX}px;top:${endY}px`;
+      document.body.append(puddle);
+      puddle.animate([
+        { transform: "translate(-50%,-50%) scale(.2)", opacity: .9 },
+        { transform: "translate(-50%,-50%) scale(1.6, .6)", opacity: 0 }
+      ], { duration: 900, easing: "ease-out" }).onfinish = () => puddle.remove();
+    }
+  };
+}
+
+// one fruit per round that scored. positive rounds get eaten, negative ones are sour
+function feast(whenDone) {
+  const rounds = scoreboard.filter(r => r.points !== 0);
+  if (reducedMotion || !rounds.length) {
+    whenDone();
+    return;
+  }
+  window.scrollTo(0, 0);
+  setPose("stand", false);
+  scrollSpeed = 0;
+
+  rounds.forEach((r, i) => setTimeout(() => dropFruit(r.points > 0), i * 420));
+  setTimeout(() => {
+    capyMood(0);
+    whenDone();
+  }, rounds.length * 420 + 800);
+}
+
+// total of exactly 800 ("gold") or -800 ("gloom") gets its own screen
+function showSpecial(kind, total) {
+  const gold = kind === "gold";
+  const box = document.createElement("div");
+  box.id = "special";
+  box.className = gold ? "gold" : "gloom";
+  box.innerHTML =
+    `<div class="rays"></div><div class="skyfx"></div>` +
+    `<div class="spcap"></div>` +
+    `<div class="spbig">${total}</div>` +
+    `<div class="spsub">${gold ? "Perfectly terrible" : "Too good at chess"}</div>` +
+    `<p class="spnote">${gold ? "Every single round was the worst move. Stockfish wants a word." : "You found the best move every single time. This was not the assignment."}</p>` +
+    `<button id="special-ok">Show my results</button>`;
+  document.body.append(box);
+
+  const spcap = box.querySelector(".spcap");
+  spcap.style.aspectRatio = cap.style.aspectRatio || "1";
+  const spriteTimer = playSprite(spcap, gold ? "run" : "sit");
+  const timers = [spriteTimer];
+  const sky = box.querySelector(".skyfx");
+
+  if (!reducedMotion) {
+    if (gold) {
+      // yuzu confetti
+      for (let i = 0; i < 36; i++) {
+        const bit = document.createElement("div");
+        bit.className = "confetti";
+        bit.innerHTML = makeYuzu();
+        fillYuzu(bit, MAX_FRUIT_SLICES, false);
+        bit.style.left = rand(0, 100) + "vw";
+        sky.append(bit);
+        bit.animate([
+          { transform: "translateY(-10vh) rotate(0deg)" },
+          { transform: `translateY(110vh) rotate(${rand(-540, 540)}deg)` }
+        ], { duration: rand(2800, 5000), delay: rand(0, 3000), iterations: Infinity, easing: "linear" });
+      }
+    } else {
+      // rain, sour fruit and the occasional lightning
+      for (let i = 0; i < 70; i++) {
+        const drop = document.createElement("i");
+        drop.className = "drop";
+        drop.style.left = rand(0, 100) + "vw";
+        sky.append(drop);
+        drop.animate([
+          { transform: "translateY(-10vh)" },
+          { transform: "translateY(110vh)" }
+        ], { duration: rand(500, 900), delay: rand(0, 900), iterations: Infinity, easing: "linear" });
+      }
+      for (let i = 0; i < 6; i++) {
+        const bit = document.createElement("div");
+        bit.className = "confetti";
+        bit.innerHTML = makeYuzu();
+        fillYuzu(bit, MAX_FRUIT_SLICES, true);
+        bit.style.left = rand(5, 95) + "vw";
+        sky.append(bit);
+        bit.animate([
+          { transform: "translateY(-10vh) rotate(0deg)" },
+          { transform: `translateY(110vh) rotate(${rand(-200, 200)}deg)` }
+        ], { duration: rand(5000, 8000), delay: rand(0, 4000), iterations: Infinity, easing: "linear" });
+      }
+      const flash = document.createElement("div");
+      flash.className = "flash";
+      box.append(flash);
+      const zap = () => flash.animate(
+        [{ opacity: 0 }, { opacity: .9, offset: .1 }, { opacity: 0, offset: .3 }, { opacity: .6, offset: .4 }, { opacity: 0 }],
+        { duration: 600 }
+      );
+      zap();
+      timers.push(setInterval(zap, 3200));
+    }
+  }
+
+  sfx.play(gold ? "gold" : "gloom");
+  box.querySelector("#special-ok").onclick = () => {
+    timers.forEach(clearInterval);
+    box.remove();
+  };
 }
 
 // ---------- final screen ----------
@@ -624,6 +824,7 @@ function showFinalScreen() {
   const title = pickQuip(band[1], "final");
 
   document.getElementById("game").hidden = true;
+  document.querySelector("main").classList.add("summary");     // narrow column again
   const final = document.getElementById("final");
   final.hidden = false;
 
@@ -671,6 +872,19 @@ function showFinalScreen() {
   });
 
   document.getElementById("again").onclick = () => location.reload();
+
+  // after a short pause the fruits rain down on the capybara, then maybe a special screen
+  // the capybara waits next to the summary. on a phone there's no room beside it,
+  // so there the summary just fades out for a moment instead
+  const special = total === MAX_SCORE ? "gold" : total === MIN_SCORE ? "gloom" : null;
+  if (!parkBesidePanel() && !reducedMotion) final.classList.add("feasting");
+  setTimeout(() => {
+    feast(() => {
+      final.classList.remove("feasting");
+      if (special) showSpecial(special, total);
+      else sfx.play("jingle");
+    });
+  }, 600);
 }
 
 // ---------- go! ----------
@@ -693,3 +907,16 @@ async function loadPuzzles() {
   }
 }
 loadPuzzles();
+
+// ---------- sound on/off + button clicks ----------
+const muteButton = document.getElementById("mute");
+muteButton.textContent = sfx.isMuted() ? "🔇" : "🔊";
+muteButton.onclick = () => {
+  const nowMuted = sfx.toggle();
+  muteButton.textContent = nowMuted ? "🔇" : "🔊";
+};
+// every other button gets a little click
+document.addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (btn && btn.id !== "mute") sfx.play("ui");
+});
