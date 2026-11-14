@@ -1,18 +1,20 @@
+// sound effects are made with WebAudio, only the music is a real file
+
 const sfx = (function () {
   let ctx = null;
   let muted = false;
-  try { muted = localStorage.getItem("muted") === "1"; } catch (e) { /* private window, ignore */ }
+  try { muted = localStorage.getItem("muted") === "1"; } catch (e) {}
 
-  // ---- background music: a looping track, kept really quiet ----
-  const MUSIC_FILE = "assets/CapyHapySoundtrack.mp3";   
-  const MUSIC_VOLUME = 0.07;                            // 0 to 1. 
+  const MUSIC_FILE = "assets/CapyHapySoundtrack.mp3";  // spelled exactly like the file, github pages cares about capitals
+  const MUSIC_VOLUME = 0.07;
   const music = new Audio(MUSIC_FILE);
   music.loop = true;
   music.volume = 0;
   let fadeTimer = null;
-  let musicGain = null;       
+  let musicGain = null;
   let musicLevel = 0;
 
+  // some browsers kill the beeps when an <audio> tag plays too, so the music goes through the same audio context
   function plugMusicIn() {
     const c = wake();
     if (!c || musicGain) return;
@@ -23,7 +25,7 @@ const sfx = (function () {
       music.volume = 1;
       source.connect(musicGain).connect(c.destination);
     } catch (e) {
-      musicGain = null;       
+      musicGain = null;
     }
   }
 
@@ -36,15 +38,14 @@ const sfx = (function () {
   function startMusic() {
     if (muted) return;
     plugMusicIn();
-    music.play().catch(() => { /* browser said no (or file missing), no big deal */ });
+    music.play().catch(() => {});
     clearInterval(fadeTimer);
-    fadeTimer = setInterval(() => {         // fade in over a few seconds so it sneaks up on you
+    fadeTimer = setInterval(() => {
       setMusicLevel(Math.min(MUSIC_VOLUME, musicLevel + MUSIC_VOLUME / 30));
       if (musicLevel >= MUSIC_VOLUME) clearInterval(fadeTimer);
     }, 100);
   }
 
-  // don't keep playing in a tab
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) music.pause();
     else if (!muted && music.currentTime > 0) music.play().catch(() => {});
@@ -55,6 +56,7 @@ const sfx = (function () {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return null;
       ctx = new AudioCtx();
+      // phones sometimes pause the context when other audio starts
       ctx.onstatechange = function () {
         if (ctx.state !== "running" && ctx.state !== "closed") ctx.resume().catch(() => {});
       };
@@ -63,7 +65,6 @@ const sfx = (function () {
     return ctx;
   }
 
-  // one beep. freq can slide to freqEnd. delay is in seconds from now
   function tone(freq, length, opts) {
     const c = wake();
     if (!c || muted) return;
@@ -83,7 +84,6 @@ const sfx = (function () {
     osc.stop(start + length + 0.05);
   }
 
-  // a burst of static- thumps, splats and crunches
   function noise(length, opts) {
     const c = wake();
     if (!c || muted) return;
@@ -105,14 +105,13 @@ const sfx = (function () {
     src.start(start);
   }
 
-  //just semitones above A3 (220Hz)
+  // note names are too much work, semitones above A3 (220Hz)
   const note = n => 220 * Math.pow(2, n / 12);
 
   const sounds = {
     select() { tone(660, 0.07, { type: "triangle", vol: 0.12 }); },
     ui() { tone(440, 0.06, { type: "square", vol: 0.06 }); tone(660, 0.08, { type: "square", vol: 0.06, delay: 0.05 }); },
 
-    // the piece slamming down. bad move = deeper and louder
     stomp(tier) {
       const power = [1, 0.8, 0.6, 0.4, 0.25, 0][tier] || 0;
       if (!power) return;
@@ -120,15 +119,13 @@ const sfx = (function () {
       noise(0.15 + power * 0.2, { freq: 600 + power * 600, vol: 0.4 * power });
     },
 
-    // little ticks while the points count up. k goes 0..1, sign = gaining or losing
     tick(k, sign) {
       const f = sign >= 0 ? 400 + k * 600 : 500 - k * 300;
       tone(f, 0.04, { type: "square", vol: 0.05 });
     },
 
-    // the verdict jingle for each tier
     sting(tier) {
-      if (tier === 0) {            // gold: happy fanfare
+      if (tier === 0) {
         [0, 4, 7, 12].forEach((n, i) => tone(note(n + 12), 0.25, { type: "triangle", vol: 0.18, delay: i * 0.09 }));
         tone(note(24), 0.6, { type: "triangle", vol: 0.18, delay: 0.4 });
       } else if (tier === 1) {
@@ -139,10 +136,10 @@ const sfx = (function () {
       } else if (tier === 3) {
         tone(note(5), 0.2, { type: "sine", vol: 0.15 });
         tone(note(3), 0.3, { type: "sine", vol: 0.15, delay: 0.18 });
-      } else if (tier === 4) {     // sad trombone
+      } else if (tier === 4) {
         [[7, 0], [6, 0.28], [5, 0.56]].forEach(p => tone(note(p[0]), 0.3, { type: "sawtooth", vol: 0.1, delay: p[1] }));
         tone(note(4), 0.8, { type: "sawtooth", vol: 0.1, freqEnd: note(2), delay: 0.84 });
-      } else {                     // too slow: buzzer
+      } else {
         tone(110, 0.5, { type: "sawtooth", vol: 0.15 });
         tone(117, 0.5, { type: "sawtooth", vol: 0.15 });
       }
@@ -160,6 +157,17 @@ const sfx = (function () {
       noise(0.25, { filter: "lowpass", freq: 500, vol: 0.5 });
       tone(200, 0.3, { type: "sawtooth", vol: 0.12, freqEnd: 50 });
     },
+    whoosh() {
+      noise(0.2, { filter: "bandpass", freq: 1200, vol: 0.2 });
+      tone(300, 0.2, { freqEnd: 900, vol: 0.06 });
+    },
+    crash(level) {
+      noise(0.25 + level * 0.15, { freq: 500 + level * 400, vol: 0.4 + level * 0.1 });
+      tone(120, 0.3 + level * 0.1, { type: "sawtooth", freqEnd: 35, vol: 0.3 });
+      if (level >= 2) noise(0.5, { filter: "highpass", freq: 2500, vol: 0.25, delay: 0.05 });
+      if (level >= 3) [0, -5, -9].forEach((n, i) => tone(note(n - 12), 0.5, { type: "square", vol: 0.12, delay: 0.2 + i * 0.18 }));
+    },
+    badge() { [0, 7, 12].forEach((n, i) => tone(note(n + 12), 0.18, { type: "triangle", vol: 0.15, delay: i * 0.08 })); },
     boing() { tone(300, 0.2, { freqEnd: 700, vol: 0.12 }); },
 
     jingle() {
@@ -187,7 +195,7 @@ const sfx = (function () {
 
   function toggle() {
     muted = !muted;
-    try { localStorage.setItem("muted", muted ? "1" : "0"); } catch (e) { /* fine */ }
+    try { localStorage.setItem("muted", muted ? "1" : "0"); } catch (e) {}
     if (muted) music.pause();
     else {
       startMusic();
@@ -196,7 +204,7 @@ const sfx = (function () {
     return muted;
   }
 
-  // audio is locked until the first real click or key press
+  // audio stays locked until the first click
   ["pointerdown", "keydown"].forEach(ev => window.addEventListener(ev, function () {
     wake();
     startMusic();

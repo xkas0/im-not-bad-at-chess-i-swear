@@ -1,4 +1,4 @@
-// Falling chess pieces in the background. Some shatter when they land.
+// falling chess pieces in the background, some shatter
 (function () {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
@@ -38,7 +38,7 @@
     piece.style.cssText = `left:${x}vw;font-size:${size}px;filter:blur(${blur}px)`;
     layer.append(piece);
 
-    // Pieces that break stop at the bottom edge, the others fall off screen
+    // pieces that break stop at the bottom edge, the others fall off screen
     const end = breaks ? `calc(100vh - ${size}px)` : "115vh";
     piece.animate([
       { transform: "translateY(-15vh) rotate(0deg)" },

@@ -1,59 +1,90 @@
+// I Swear I'm Good at Chess
+// puzzles come from positions.json (made by magic_generator.py), every move already has a stockfish score
+
 const PIECE_ICONS = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" };
 const FILES = "abcdefgh";
 const HOW_MANY_ROUNDS = 8;
-const SECONDS_PER_MOVE = 30;
+const SECONDS_NORMAL = 30;
+const SECONDS_FAST = 5;
 const MAX_SCORE = HOW_MANY_ROUNDS * 100;
-const MIN_SCORE = -MAX_SCORE;         // finding the best move every single time
-const MAX_FRUIT_SLICES = 24;          // 3 yuzu x 8 slices each
+const MIN_SCORE = -MAX_SCORE;
+const MAX_FRUIT_SLICES = 24;  // 3 yuzu x 8 slices
 
-// Moves ranked above this (0 = worst move, 1 = best move) cost you points.
-// Make it bigger if the game feels too stingy, smaller if it feels too easy.
+// moves ranked above this cost you points (0 = worst move, 1 = best)
 const GOOD_MOVE_CUTOFF = 0.75;
-// What the very best move costs you. It used to be 50, now 100 so that -800 is actually possible.
+// was 50, now 100 so -800 is actually possible
 const BEST_MOVE_PENALTY = 100;
 
 const TIER_NAMES = ["Peak blunder", "Disaster", "Ugly", "Meh", "Suspiciously sensible", "Too slow"];
-const SHAKE_POWER = [16, 11, 8, 5, 3, 0];      // how hard the board shakes per tier
-const DEBRIS_COUNT = [22, 16, 12, 8, 5];       // flying bits per tier
+const SHAKE_POWER = [16, 11, 8, 5, 3, 0];
+const DEBRIS_COUNT = [22, 16, 12, 8, 5];
 
-// ---- game state (the stuff that changes while you play) ----
+// game state
 let puzzles = [];
 let roundNo = 0;
-let pickedSquare = null;      // the square you clicked first, like "e2"
-let frozen = false;           // true once you moved (or ran out of time)
-let scoreboard = [];          // one entry per finished round
-let boardAfterMove = null;    // copy of the grid with your move already played
-let landingSquare = null;     // where your piece lands (gets the stomp)
+let pickedSquare = null;  // the square you clicked first, like "e2"
+let frozen = false;  // true once you moved or ran out of time
+let started = false;  // false until you press play
+let scoreboard = [];
+let boardAfterMove = null;
+let landingSquare = null;
 let landingEl = null;
-let glow = {};                // square name -> tier number, tints your move
+let glow = {};
 let clockTimer = null;
+let moveStartedAt = 0;
+let queenLost = false;
 
-// ---------- high score (saved in the browser, so it's per person per device) ----------
+let fastMode = false;
+try { fastMode = localStorage.getItem("fastMode") === "1"; } catch (e) {}
+let secondsPerMove = fastMode ? SECONDS_FAST : SECONDS_NORMAL;
 
-// dev mode plays fake games, those shouldn't touch the real high score
-const savingScores = !location.search.includes("dev");
+// saving stuff
+
+// the dev panel turns this off for its fake games
+let savingScores = true;
+
+function bestKey() {
+  return fastMode ? "bestScoreFast" : "bestScore";
+}
 
 function readBest() {
   try {
-    const saved = localStorage.getItem("bestScore");
+    const saved = localStorage.getItem(bestKey());
     return saved === null ? null : Number(saved);
   } catch (e) {
-    return null;          // storage blocked, just act like there's no score yet
+    return null;
   }
 }
 
 function saveBest(score) {
-  try { localStorage.setItem("bestScore", String(score)); } catch (e) { /* oh well */ }
+  try { localStorage.setItem(bestKey(), String(score)); } catch (e) {}
 }
 
 function showBest() {
   const best = readBest();
-  document.getElementById("best").textContent = best === null ? "" : "Best " + best;
+  document.getElementById("best").textContent = best === null ? "" : (fastMode ? "😰 Best " : "Best ") + best;
 }
 
-// ---------- chess helpers ----------
+function readStats() {
+  try {
+    return JSON.parse(localStorage.getItem("capyStats")) || {};
+  } catch (e) {
+    return {};
+  }
+}
 
-// "rnbq1k.../..." -> 8x8 grid of letters (null = empty) + whose turn it is
+function writeStats(stats) {
+  try { localStorage.setItem("capyStats", JSON.stringify(stats)); } catch (e) {}
+}
+
+function dayString(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+// chess helpers
+
 function readFen(fen) {
   const [placement, turn] = fen.split(" ");
   const grid = placement.split("/").map(function (rankText) {
@@ -78,24 +109,23 @@ function whoIsOn(grid, name) {
   return grid[8 - name[1]][FILES.indexOf(name[0])];
 }
 
-// forced mates are around +-10000, which would wreck everything, so squish them
+// forced mates are around +-10000, that wrecks everything so squish them
 function squish(v) {
   return Math.max(-1000, Math.min(1000, v));
 }
 
-// Ranks your move among all legal moves and turns that into a tier + points.
-// q = 0 means you found the worst move, q = 1 means you found the best one.
+// q: 0 = worst move, 1 = best move
 function judgeMove(move, scores) {
   const sorted = Object.values(scores).sort((a, b) => a - b);
   const n = sorted.length;
-  // ties count as the extreme: tied for worst = 0, tied for best = 1
+  // ties count as the extreme
   let q;
   if (n < 2 || scores[move] === sorted[0]) q = 0;
   else if (scores[move] === sorted[n - 1]) q = 1;
   else q = sorted.indexOf(scores[move]) / (n - 1);
 
   let tier;
-  if (scores[move] === sorted[0]) tier = 0;      // ties for worst count as worst
+  if (scores[move] === sorted[0]) tier = 0;
   else if (q < 0.12) tier = 1;
   else if (q < 0.35) tier = 2;
   else if (q < GOOD_MOVE_CUTOFF) tier = 3;
@@ -110,7 +140,6 @@ function judgeMove(move, scores) {
   return { t: tier, ratio: 1 - q, points: points };
 }
 
-// "e2e4" -> "♟ e2→e4"
 function prettyMove(fen, uci) {
   if (!uci) return "Time's up";
   const from = uci.slice(0, 2);
@@ -121,22 +150,56 @@ function prettyMove(fen, uci) {
   return icon + from + "→" + to + promo;
 }
 
+// moves a piece on the grid, returns whatever it captured
+function movePiece(grid, uci) {
+  const from = uci.slice(0, 2);
+  const to = uci.slice(2, 4);
+  const piece = whoIsOn(grid, from);
+  if (!piece) return null;
+
+  const fromRow = 8 - from[1];
+  const fromCol = FILES.indexOf(from[0]);
+  const toRow = 8 - to[1];
+  const toCol = FILES.indexOf(to[0]);
+  let captured = grid[toRow][toCol];
+
+  let landed = piece;
+  if (uci[4]) landed = piece === piece.toUpperCase() ? uci[4].toUpperCase() : uci[4];
+
+  // en passant
+  if (piece.toLowerCase() === "p" && fromCol !== toCol && !captured) {
+    captured = grid[fromRow][toCol];
+    grid[fromRow][toCol] = null;
+  }
+  // castling
+  if (piece.toLowerCase() === "k" && Math.abs(toCol - fromCol) === 2) {
+    const rookFrom = toCol > fromCol ? 7 : 0;
+    const rookTo = toCol > fromCol ? toCol - 1 : toCol + 1;
+    grid[fromRow][rookTo] = grid[fromRow][rookFrom];
+    grid[fromRow][rookFrom] = null;
+  }
+
+  grid[toRow][toCol] = landed;
+  grid[fromRow][fromCol] = null;
+  return captured;
+}
+
 function totalPoints() {
   return scoreboard.reduce((sum, r) => sum + r.points, 0);
 }
 
-// +1 if white is to move, -1 for black (stockfish scores are from the mover's side)
+// +1 white to move, -1 black (scores are from the mover's side)
 function sideSign(fen) {
   return readFen(fen).turn === "w" ? 1 : -1;
 }
 
-// the eval of the position if you play the best move, from white's point of view
+// eval after the best move, from white's side
 function evalBeforeMove() {
   const p = puzzles[roundNo];
   return Math.max(...Object.values(p.scores).map(squish)) * sideSign(p.fen);
 }
 
-// ---------- drawing the board ----------
+// drawing
 
 function drawRoundDots() {
   let html = "";
@@ -161,10 +224,9 @@ function drawBoard() {
   board.innerHTML = "";
   landingEl = null;
 
-  const flip = turn === "b";    // always show the board from the mover's side
-  document.querySelector(".evalbar").classList.toggle("flipped", flip);   // bar turns around with the board
+  const flip = turn === "b";
+  document.querySelector(".evalbar").classList.toggle("flipped", flip);
 
-  // squares the picked piece can go to (the little dots / rings)
   let targets = new Set();
   if (pickedSquare && !frozen) {
     const moves = Object.keys(puzzle.scores).filter(m => m.startsWith(pickedSquare));
@@ -180,6 +242,7 @@ function drawBoard() {
 
       const sq = document.createElement("div");
       sq.className = "sq " + ((row + col) % 2 === 0 ? "l" : "d");
+      sq.dataset.sq = name;
 
       if (piece) {
         const icon = document.createElement("span");
@@ -202,16 +265,16 @@ function drawBoard() {
   const who = turn === "w" ? "White" : "Black";
   document.getElementById("status").textContent = frozen ? "" : who + " to move. Click a piece, then its destination.";
   drawRoundDots();
+  drawModeButtons();
 }
 
-// the ring + flying bits when your piece slams down. worse move = bigger boom
-function kaboom(tier) {
+// ring + flying bits when your piece slams down
+function kaboom(tier, spot = landingEl, extraBits = 0) {
   const fx = document.getElementById("fx");
-  fx.innerHTML = "";
-  if (!landingEl || !SHAKE_POWER[tier]) return;
+  if (!spot || !SHAKE_POWER[tier]) return;
 
-  const x = landingEl.offsetLeft + landingEl.offsetWidth / 2;
-  const y = landingEl.offsetTop + landingEl.offsetHeight / 2;
+  const x = spot.offsetLeft + spot.offsetWidth / 2;
+  const y = spot.offsetTop + spot.offsetHeight / 2;
 
   const ring = document.createElement("div");
   ring.className = "ring t" + tier;
@@ -219,7 +282,7 @@ function kaboom(tier) {
   fx.append(ring);
 
   const colours = ["#ffc83d", "#ff8a3d", "#ff4d6d", "#f2efff"];
-  for (let i = 0; i < DEBRIS_COUNT[tier]; i++) {
+  for (let i = 0; i < DEBRIS_COUNT[tier] + extraBits; i++) {
     const angle = Math.random() * Math.PI * 2;
     const dist = 40 + Math.random() * 80;
     const bit = document.createElement("div");
@@ -233,22 +296,35 @@ function kaboom(tier) {
   }
 }
 
-// ---------- the 30 second clock ----------
+function showClockFull() {
+  document.getElementById("clockfill").style.width = "100%";
+  document.getElementById("clockfill").classList.remove("low");
+  document.getElementById("clocktext").textContent = secondsPerMove + "s";
+}
+
+function startGame() {
+  started = true;
+  document.getElementById("boardwrap").classList.remove("waiting");
+  document.getElementById("gate").hidden = true;
+  drawModeButtons();
+  startClock();
+}
 
 function startClock() {
   clearInterval(clockTimer);
   const startedAt = Date.now();
+  moveStartedAt = startedAt;
   const fill = document.getElementById("clockfill");
   const text = document.getElementById("clocktext");
   let lastTickSecond = -1;
 
   clockTimer = setInterval(() => {
-    const left = SECONDS_PER_MOVE - (Date.now() - startedAt) / 1000;
-    fill.style.width = Math.max(0, left / SECONDS_PER_MOVE * 100) + "%";
-    fill.classList.toggle("low", left < 8);
+    const left = secondsPerMove - (Date.now() - startedAt) / 1000;
+    fill.style.width = Math.max(0, left / secondsPerMove * 100) + "%";
+    fill.classList.toggle("low", left < (fastMode ? 2 : 8));
     text.textContent = Math.max(0, Math.ceil(left)) + "s";
     const wholeSeconds = Math.ceil(left);
-    if (left > 0 && wholeSeconds <= 5 && wholeSeconds !== lastTickSecond) {
+    if (left > 0 && wholeSeconds <= (fastMode ? 3 : 5) && wholeSeconds !== lastTickSecond) {
       lastTickSecond = wholeSeconds;
       sfx.play("clock", wholeSeconds);
     }
@@ -266,10 +342,8 @@ function outOfTime() {
   showVerdict();
 }
 
-// ---------- clicking + playing a move ----------
-
 function onSquareClick(name) {
-  if (frozen) return;
+  if (frozen || !started) return;
 
   const { grid, turn } = readFen(puzzles[roundNo].fen);
   const piece = whoIsOn(grid, name);
@@ -283,12 +357,12 @@ function onSquareClick(name) {
     }
     return;
   }
-  if (name === pickedSquare) {          // clicked the same piece again = put it back
+  if (name === pickedSquare) {
     pickedSquare = null;
     drawBoard();
     return;
   }
-  if (isMine) {                         // clicked another one of your pieces = switch to it
+  if (isMine) {
     pickedSquare = name;
     sfx.play("select");
     drawBoard();
@@ -301,7 +375,7 @@ function playMove(uci) {
   const puzzle = puzzles[roundNo];
   const scores = puzzle.scores;
 
-  // TODO: promotion is always a queen for now (so you can never pick the worst promotion)
+  // TODO: promotion is always a queen for now
   let move = uci;
   if (!(move in scores)) move = uci + "q";
 
@@ -314,59 +388,146 @@ function playMove(uci) {
 
   clearInterval(clockTimer);
   const verdict = judgeMove(move, scores);
-  scoreboard.push({ fen: puzzle.fen, scores: scores, move: move, ...verdict });
+  scoreboard.push({ fen: puzzle.fen, scores: scores, move: move, secs: (Date.now() - moveStartedAt) / 1000, limit: secondsPerMove, ...verdict });
   frozen = true;
   pickedSquare = null;
 
-  // draw the position with the move already played
   const { grid } = readFen(puzzle.fen);
   const from = move.slice(0, 2);
   const to = move.slice(2, 4);
-  const piece = whoIsOn(grid, from);
   boardAfterMove = grid.map(rank => rank.slice());
-
-  let landed = piece;
-  if (move[4]) landed = piece === piece.toUpperCase() ? move[4].toUpperCase() : move[4];
-  boardAfterMove[8 - to[1]][FILES.indexOf(to[0])] = landed;
-  boardAfterMove[8 - from[1]][FILES.indexOf(from[0])] = null;
-  // (castling / en passant only move the one piece here, the score is still right though)
+  movePiece(boardAfterMove, move);
 
   landingSquare = to;
   glow = { [from]: verdict.t, [to]: verdict.t };
   drawBoard();
   kaboom(verdict.t);
   shakeTheBoard(verdict.t);
-  setTimeout(() => sfx.play("stomp", verdict.t), 220);     // lines up with the piece landing
+  setTimeout(() => sfx.play("stomp", verdict.t), 220);
 
-  setTimeout(showVerdict, 800);
+  setTimeout(() => punishTheMove(move, showVerdict), 800);
 }
 
-function shakeTheBoard(tier) {
+function shakeTheBoard(tier, power) {
   const board = document.getElementById("board");
-  board.style.setProperty("--a", SHAKE_POWER[tier] + "px");
+  board.style.setProperty("--a", (power === undefined ? SHAKE_POWER[tier] : power) + "px");
   board.classList.remove("shake");
-  void board.offsetWidth;    // don't ask. this restarts the css animation
+  void board.offsetWidth;  // don't ask. restarts the css animation
   board.classList.add("shake");
 }
 
-// ---------- quips ----------
+// punishment
+
+const CAPTURE_SHOUTS = {
+  p: ["NOM", "SNACK TIME", "PAWN DOWN"],
+  n: ["CLONK", "HORSEY DOWN", "NEIGH-O"],
+  b: ["SLICE", "HOLY MOLY", "BISHOP DOWN"],
+  r: ["KABOOM", "TOWER DOWN", "RUUUIN"],
+  q: ["ROYAL DISASTER", "YOUR MAJESTY!!", "NOT THE QUEEN"]
+};
+const QUIET_SHOUTS = ["Quietly crushing.", "Calm. Menacing.", "No capture needed.", "Tsk."];
+
+// [boom size, extra debris, shake, sound level] per captured piece
+const CAPTURE_POWER = { p: [3, 0, 8, 0], n: [2, 6, 12, 1], b: [2, 6, 12, 1], r: [1, 14, 17, 2], q: [0, 34, 26, 3] };
+
+function squareEl(name) {
+  return document.querySelector(`#board [data-sq="${name}"]`);
+}
+
+function flashBoard() {
+  const flash = document.createElement("div");
+  flash.className = "boardflash";
+  document.getElementById("fx").append(flash);
+  flash.animate([{ opacity: 0.85 }, { opacity: 0 }], { duration: 450, easing: "ease-out" }).onfinish = () => flash.remove();
+}
+
+function shout(text, big) {
+  const el = document.createElement("div");
+  el.className = "shout" + (big ? " big" : "");
+  el.textContent = text;
+  document.getElementById("fx").append(el);
+  el.animate([
+    { transform: "translate(-50%,-50%) scale(.3) rotate(-8deg)", opacity: 0 },
+    { transform: "translate(-50%,-50%) scale(1.25) rotate(-4deg)", opacity: 1, offset: 0.3 },
+    { transform: "translate(-50%,-58%) scale(1) rotate(-4deg)", opacity: 1, offset: 0.75 },
+    { transform: "translate(-50%,-90%) scale(1) rotate(-4deg)", opacity: 0 }
+  ], { duration: big ? 1300 : 900, easing: "ease-out" }).onfinish = () => el.remove();
+}
+
+function flyAway(pieceEl) {
+  pieceEl.style.zIndex = 15;
+  pieceEl.animate([
+    { transform: "translate(0,0) rotate(0deg) scale(1)", opacity: 1 },
+    { transform: `translate(${rand(-70, 70)}px, -150px) rotate(${rand(-720, 720)}deg) scale(2.4)`, opacity: 0 }
+  ], { duration: 750, easing: "ease-out", fill: "forwards" });
+}
+
+function punishTheMove(move, whenDone) {
+  const reply = puzzles[roundNo].replies && puzzles[roundNo].replies[move];
+  const mover = reply ? squareEl(reply.slice(0, 2)) : null;
+  const target = reply ? squareEl(reply.slice(2, 4)) : null;
+  const pieceEl = mover && mover.querySelector(".pc");
+  if (!pieceEl || !target || reducedMotion) {
+    whenDone();
+    return;
+  }
+
+  const afterReply = boardAfterMove.map(rank => rank.slice());
+  const captured = movePiece(afterReply, reply);
+  const victim = captured ? captured.toLowerCase() : null;
+  if (victim === "q") queenLost = true;
+
+  const power = victim ? CAPTURE_POWER[victim] : [4, 0, 4, 0];
+  const dx = target.offsetLeft - mover.offsetLeft;
+  const dy = target.offsetTop - mover.offsetTop;
+  const slideMs = 320;
+
+  sfx.play("whoosh");
+  pieceEl.style.zIndex = 20;
+  const slide = pieceEl.animate([
+    { transform: "translate(0,0) scale(1)" },
+    { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 18}px) scale(1.5)`, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) scale(1.15)` }
+  ], { duration: slideMs, easing: "cubic-bezier(.6, 0, 1, .7)", fill: "forwards" });
+
+  // css ring has a delay so the boom starts a bit early
+  setTimeout(() => {
+    kaboom(power[0], target, power[1]);
+    shakeTheBoard(power[0], power[2]);
+  }, slideMs - 170);
+
+  slide.onfinish = () => {
+    sfx.play("crash", power[3]);
+    if (victim) {
+      const victimEl = target.querySelector(".pc");
+      if (victimEl && victimEl !== pieceEl) flyAway(victimEl);
+      if (power[3] >= 2) flashBoard();
+      shout(pickQuip(CAPTURE_SHOUTS[victim], "shout" + victim), true);
+    } else {
+      shout(pickQuip(QUIET_SHOUTS, "quiet"), false);
+    }
+
+    setTimeout(() => {
+      boardAfterMove = afterReply;
+      landingSquare = null;
+      drawBoard();
+      whenDone();
+    }, victim ? 1000 : 550);
+  };
+}
+
+// text
 
 const MOVE_QUIPS = [
-  // 0: found the worst move
   ["Chef's kiss. Total catastrophe!", "Perfectly terrible. I'm moved.", "You found the abyss and moved in.", "Stockfish just left the room.", "A masterpiece of bad judgment.", "Not one piece survived that decision."],
-  // 1: disaster (red)
   ["Oof. Your pieces filed a complaint.", "Disaster, with room to grow.", "That move has a lawyer now.", "Your king is updating his resume.", "So close to peak ruin.", "Bold. Wrong. Beautiful."],
-  // 2: ugly (orange)
   ["Wrong. Confidently wrong, even.", "Wrong, but not wrong enough.", "Bad, but your opponent will survive.", "A very respectable oops.", "Nearly offensive. Nearly.", "Wrong in a way your coach would sigh at."],
-  // 3: meh (teal)
   ["Mid-tier mistake. Needs more chaos.", "Too reasonable. Try suffering.", "Your inner coward is showing.", "That move has a pulse. Unacceptable.", "Ew. Structure.", "Almost bad. Almost."],
-  // 4: actually sensible (gray)
   ["Ew. That was actually decent.", "Suspiciously good. Are you cheating?", "A grandmaster would be proud. Disgusting.", "You tried to play well, didn't you.", "That's the opposite of the assignment.", "Please stop being good at this."],
-  // 5: ran out of time
   ["Clock ran out. The board got bored.", "The pieces waited. And waited.", "Thinking is not a move.", "Time's up. So is your dignity.", "Even the pawns fell asleep."]
 ];
 
-// [minimum share of the max score, titles you can get]  -- checked top to bottom
+// [min share of max score, titles] checked top to bottom
 const FINAL_TITLES = [
   [0.85, ["Certified menace", "Agent of chaos", "Chess crimes champion", "Has never once been good at chess (on purpose)", "Stockfish files restraining orders"]],
   [0.65, ["Natural disaster", "Gifted at being terrible", "Grandmaster of the blunder", "A hazard to wooden pieces", "Your pieces fear you"]],
@@ -375,7 +536,7 @@ const FINAL_TITLES = [
   [-1e9, ["Disappointingly good at chess", "Ugh, you actually are good", "Stockfish's favourite nephew", "Please go play ranked", "You swore, and it was true"]]
 ];
 
-// random line, but never the same one twice in a row for the same key
+// no repeats in a row
 const lastQuip = {};
 function pickQuip(list, key) {
   let i;
@@ -386,18 +547,18 @@ function pickQuip(list, key) {
   return list[i];
 }
 
-// ---------- the capybara + scrolling scenery ----------
+// capybara + scenery
 
-// capyking.webp is 4 columns x 3 rows: top = stand/walk, middle = run, bottom = sit
+// capyking.webp: 4 columns x 3 rows
 const SHEET_COLS = 4;
 const SHEET_ROWS = 3;
 const POSES = {
-  stand: { row: 0, frames: [0], fps: 1 },            // not used right now
+  stand: { row: 0, frames: [0], fps: 1 },
   walk:  { row: 0, frames: [1, 2, 3], fps: 8 },
   run:   { row: 1, frames: [0, 1, 2, 3], fps: 12 },
   sit:   { row: 2, frames: [0, 1, 2, 3], fps: 3 }
 };
-// sky, hills, ground, bushes. higher = scrolls faster
+// sky, hills, ground, bushes
 const SCROLL_SPEEDS = [0.06, 0.3, 0.75, 0.75];
 
 const cap = document.getElementById("cap");
@@ -405,7 +566,7 @@ const layers = [...document.querySelectorAll("#world .ly")];
 let currentPose = "";
 let frameNo = 0;
 let frameTimer = null;
-let scrollSpeed = 0;                  // px per second, negative = scrolling backwards
+let scrollSpeed = 0;
 const scrollOffsets = [0, 0, 0, 0];
 
 const sheet = new Image();
@@ -431,7 +592,7 @@ function setPose(name, flipped) {
   frameTimer = setInterval(drawFrame, 1000 / pose.fps);
 }
 
-// the sky always drifts a tiny bit, the rest only scrolls while the capybara moves
+// sky drifts a bit even when standing still
 let lastFrameTime = 0;
 function scrollLoop(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000 || 0);
@@ -445,7 +606,7 @@ function scrollLoop(now) {
 }
 scrollLoop(0);
 
-// mood = points you just got. 0 -> sit, positive -> walk/run forward, negative -> walk back
+// mood = points you just got
 function capyMood(mood) {
   if (mood === 0) {
     scrollSpeed = 0;
@@ -459,9 +620,6 @@ function capyMood(mood) {
   }
 }
 
-// ---------- score + yuzu ----------
-
-// capybara slides along the screen as the score grows, plus the number and little fruits up top
 function showScore(score) {
   const progress = Math.max(0, Math.min(MAX_SCORE, score)) / MAX_SCORE;
   cap.style.left = (8 + 74 * progress) + "%";
@@ -479,7 +637,6 @@ function showScore(score) {
   }
 }
 
-// one cut-open yuzu: skin, pith, 8 slices, a leaf and a shiny spot
 function makeYuzu() {
   const slices = [];
   for (let k = 0; k < 8; k++) {
@@ -503,13 +660,10 @@ function fruitBasket() {
   return `<div class="fruit-row">${makeYuzu()}${makeYuzu()}${makeYuzu()}</div>`;
 }
 
-// light up the first `lit` slices (out of 24). sour = greenish, for negative scores
 function fillYuzu(root, lit, sour) {
   root.querySelectorAll(".slice").forEach((s, i) => s.classList.toggle("on", i < lit));
   root.classList.toggle("sour", !!sour);
 }
-
-// ---------- the big popup after every move ----------
 
 const barPercent = v => 50 + 50 * Math.tanh(v / 350);
 function formatEval(v) {
@@ -526,7 +680,7 @@ function showVerdict() {
   const isLastRound = roundNo === HOW_MANY_ROUNDS - 1;
   const evalBefore = evalBeforeMove();
   const evalAfter = r.move ? squish(r.scores[r.move]) * sideSign(r.fen) : evalBefore;
-  const duration = r.move ? 1000 + r.ratio * 2400 : 700;     // worse move = longer, sadder fall
+  const duration = r.move ? 1000 + r.ratio * 2400 : 700;
 
   const overlay = document.getElementById("overlay");
   overlay.hidden = false;
@@ -546,7 +700,7 @@ function showVerdict() {
 
   function tick(now) {
     const k = Math.min(1, (now - startedAt) / duration);
-    const eased = Math.pow(k, 1 + 2.5 * r.ratio);     // creeps down slowly first, then plunges
+    const eased = Math.pow(k, 1 + 2.5 * r.ratio);
 
     setEvalBar(evalBefore + (evalAfter - evalBefore) * eased);
     showScore(pointsBefore + r.points * k);
@@ -572,8 +726,8 @@ function showVerdict() {
       return;
     }
 
-    // animation done: capybara sits down and the button shows up
     sfx.play("sting", r.t);
+    showRun();
     showScore(pointsBefore + r.points);
     capyMood(0);
     document.getElementById("button-spot").innerHTML =
@@ -596,6 +750,7 @@ function nextRound() {
   glow = {};
   document.getElementById("fx").innerHTML = "";
   document.getElementById("board").classList.remove("shake");
+  showRun();
 
   drawBoard();
   setEvalBar(evalBeforeMove());
@@ -604,12 +759,92 @@ function nextRound() {
   startClock();
 }
 
-// ---------- the feast + special endings ----------
+// badges
+
+function currentRun() {
+  let n = 0;
+  for (let i = scoreboard.length - 1; i >= 0 && scoreboard[i].points > 0; i--) n++;
+  return n;
+}
+
+function longestRun() {
+  let best = 0;
+  let now = 0;
+  scoreboard.forEach(r => {
+    now = r.points > 0 ? now + 1 : 0;
+    best = Math.max(best, now);
+  });
+  return best;
+}
+
+function showRun() {
+  const n = currentRun();
+  document.getElementById("run").textContent = n >= 2 ? "🔥 " + n + " in a row" : "";
+}
+
+// g = what happened this game
+const BADGES = [
+  { id: "first",   icon: "🐣", name: "First blood",       how: "Finish a game",                               test: g => true },
+  { id: "hat",     icon: "🎩", name: "Hat trick",         how: "3 gold (worst) moves in one game",            test: g => g.rounds.filter(r => r.t === 0).length >= 3 },
+  { id: "roll",    icon: "🔥", name: "On a roll",         how: "5 rounds in a row that give points",          test: g => g.longestRun >= 5 },
+  { id: "quick",   icon: "⚡", name: "Quick draw",        how: "A gold or red move in under 3 seconds",       test: g => g.rounds.some(r => r.move && r.t <= 1 && r.secs < 3) },
+  { id: "royal",   icon: "👑", name: "Royal disaster",    how: "Lose your queen to the punishment",           test: g => g.queenLost },
+  { id: "zzz",     icon: "😴", name: "Fell asleep",       how: "Run out of time in a round",                  test: g => g.rounds.some(r => r.t === 5) },
+  { id: "speed",   icon: "🏎️", name: "Cool under pressure",       how: "400+ points in panic mode",                    test: g => g.fast && g.total >= 400 },
+  { id: "grind",   icon: "📅", name: "Daily grind",       how: "Play 3 days in a row",                        test: g => g.dayStreak >= 3 },
+  { id: "perfect", icon: "🏆", name: "Perfectly terrible", how: "Score exactly 800",                          test: g => g.total === MAX_SCORE },
+  { id: "toogood", icon: "🧠", name: "Too good",          how: "Score exactly -800",                          test: g => g.total === MIN_SCORE },
+  { id: "close",   icon: "😅", name: "Cutting it close",  how: "A gold or red move in the last 2 seconds",    test: g => g.rounds.some(r => r.move && r.t <= 1 && r.secs > r.limit - 2) },
+  { id: "comeback", icon: "🪃", name: "Comeback kid",     how: "Drop below -100 and still finish above 300",  test: g => g.lowestPoint <= -100 && g.total > 300 }
+];
+
+// dev panel can force badges
+let forcedBadges = [];
+
+// each badge counts how many games you earned it in, more = rarer
+const RARITY_STEPS = [1, 10, 50, 100, 1000];
+const RARITY_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary"];
+
+function rarityLevel(count) {
+  let level = -1;
+  RARITY_STEPS.forEach((needed, i) => { if (count >= needed) level = i; });
+  return level;
+}
+
+// old saves only had a date string
+function badgeCount(stats, id) {
+  const saved = stats.badges && stats.badges[id];
+  if (!saved) return 0;
+  return typeof saved === "string" ? 1 : saved.count;
+}
+
+function drawModeButtons() {
+  const btn = document.getElementById("panic");
+  btn.disabled = started;
+  btn.classList.toggle("on", fastMode);
+  btn.setAttribute("aria-pressed", fastMode ? "true" : "false");
+  btn.textContent = fastMode ? "😰 PANIC" : "😌 Chill";
+  btn.title = fastMode ? "Panic mode: 5 seconds per move" : "Chill mode: 30 seconds per move. Click for panic mode (5 seconds).";
+}
+
+function setMode(wantFast) {
+  fastMode = wantFast;
+  secondsPerMove = fastMode ? SECONDS_FAST : SECONDS_NORMAL;
+  try { localStorage.setItem("fastMode", fastMode ? "1" : "0"); } catch (e) {}
+  showBest();
+  drawModeButtons();
+  showClockFull();
+}
+
+document.getElementById("panic").onclick = () => {
+  if (puzzles.length) setMode(!fastMode);
+};
+
+// feast + special endings
 
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const rand = (a, b) => a + Math.random() * (b - a);
 
-// animate any element with a sprite pose (the special screens have their own capybara copy)
 function playSprite(el, poseName) {
   const pose = POSES[poseName];
   let n = 0;
@@ -621,7 +856,6 @@ function playSprite(el, poseName) {
   return setInterval(drawFrame, 1000 / pose.fps);
 }
 
-// put the capybara in the empty strip left of the summary panel. false = not enough room
 function parkBesidePanel() {
   const gap = document.getElementById("final").getBoundingClientRect().left;
   const width = cap.getBoundingClientRect().width;
@@ -630,7 +864,7 @@ function parkBesidePanel() {
   return true;
 }
 
-// where the capybara's mouth is on screen (guessed from the sprite, tweak 0.9 / 0.4 if it feels off)
+// guessed from the sprite, tweak if it looks off
 function mouthSpot() {
   const box = cap.getBoundingClientRect();
   const flipped = cap.classList.contains("flip");
@@ -648,7 +882,6 @@ function wiggle(el, className) {
   el.addEventListener("animationend", () => el.classList.remove(className), { once: true });
 }
 
-// one yuzu falls from the top of the screen. good = into the mouth, sour = splat on the ground
 function dropFruit(good) {
   const spot = mouthSpot();
   const size = 56;
@@ -685,7 +918,6 @@ function dropFruit(good) {
   };
 }
 
-// one fruit per round that scored. positive rounds get eaten, negative ones are sour
 function feast(whenDone) {
   const rounds = scoreboard.filter(r => r.points !== 0);
   if (reducedMotion || !rounds.length) {
@@ -703,7 +935,6 @@ function feast(whenDone) {
   }, rounds.length * 420 + 800);
 }
 
-// total of exactly 800 ("gold") or -800 ("gloom") gets its own screen
 function showSpecial(kind, total) {
   const gold = kind === "gold";
   const box = document.createElement("div");
@@ -726,7 +957,6 @@ function showSpecial(kind, total) {
 
   if (!reducedMotion) {
     if (gold) {
-      // yuzu confetti
       for (let i = 0; i < 36; i++) {
         const bit = document.createElement("div");
         bit.className = "confetti";
@@ -740,7 +970,6 @@ function showSpecial(kind, total) {
         ], { duration: rand(2800, 5000), delay: rand(0, 3000), iterations: Infinity, easing: "linear" });
       }
     } else {
-      // rain, sour fruit and the occasional lightning
       for (let i = 0; i < 70; i++) {
         const drop = document.createElement("i");
         drop.className = "drop";
@@ -782,9 +1011,8 @@ function showSpecial(kind, total) {
   };
 }
 
-// ---------- final screen ----------
+// final screen
 
-// small non-clickable board for the summary list
 function miniBoard(fen, uci, tier) {
   const { grid, turn } = readFen(fen);
   const flip = turn === "b";
@@ -812,7 +1040,6 @@ function miniBoard(fen, uci, tier) {
   return html + "</div>";
 }
 
-// running total after each round, drawn as a line that sketches itself
 function scoreGraph() {
   const totals = [0];
   scoreboard.forEach(r => totals.push(totals[totals.length - 1] + r.points));
@@ -836,6 +1063,34 @@ function scoreGraph() {
     `<path class="gl" pathLength="1" d="${line}"/>` + dots + `</svg>`;
 }
 
+function drawShelf(stats, earnedNow) {
+  const badges = stats.badges || {};
+  document.getElementById("statline").textContent =
+    "🔥 Day streak: " + (stats.dayStreak || 1) + " · Longest run: " + (stats.bestRun || 0);
+  document.getElementById("shelf-title").textContent =
+    "Badges " + BADGES.filter(b => badgeCount(stats, b.id) > 0).length + "/" + BADGES.length;
+
+  document.getElementById("shelf").innerHTML = BADGES.map(b => {
+    const count = badgeCount(stats, b.id);
+    const level = rarityLevel(count);
+    const thisGame = earnedNow.find(e => e.badge === b);
+    const isNew = thisGame && thisGame.before === 0;
+    const next = RARITY_STEPS[level + 1];
+    const counter = next ? `${count}/${next}` : `${count}`;
+
+    if (!count) {
+      return `<div class="badge-chip"><span class="count">0/${RARITY_STEPS[0]}</span>` +
+        `<span class="bi">🔒</span><b>${b.name}</b><small>${b.how}</small></div>`;
+    }
+    const again = thisGame && !isNew;
+    return `<div class="badge-chip got r${level}${isNew ? " new" : ""}${again ? " again" : ""}">` +
+      `<span class="count">${counter}</span>` +
+      `<span class="bi">${b.icon}</span><b>${b.name}</b>` +
+      `<span class="rarity">${RARITY_NAMES[level]}</span>` +
+      `<small>${b.how}</small>${again ? "<i class=\"plus\">+1</i>" : ""}</div>`;
+  }).join("");
+}
+
 function showFinalScreen() {
   clearInterval(clockTimer);
   const total = totalPoints();
@@ -846,12 +1101,50 @@ function showFinalScreen() {
   const oldBest = readBest();
   const isNewBest = oldBest === null || total > oldBest;
   if (isNewBest && savingScores) saveBest(total);
+  const modeName = fastMode ? " (panic mode)" : "";
   const bestLine = isNewBest
-    ? `<p class="bestline new">New best score!</p>`
-    : `<p class="bestline">Your best: ${oldBest}</p>`;
+    ? `<p class="bestline new">New best score${modeName}!</p>`
+    : `<p class="bestline">Your best${modeName}: ${oldBest}</p>`;
+
+  const stats = readStats();
+  stats.badges = stats.badges || {};
+  if (stats.lastDay !== dayString(0)) {
+    stats.dayStreak = stats.lastDay === dayString(-1) ? (stats.dayStreak || 0) + 1 : 1;
+    stats.lastDay = dayString(0);
+  }
+  const run = longestRun();
+  if (run > (stats.bestRun || 0)) stats.bestRun = run;
+
+  let running = 0;
+  let lowestPoint = 0;
+  scoreboard.forEach(r => {
+    running += r.points;
+    lowestPoint = Math.min(lowestPoint, running);
+  });
+
+  const gameSummary = { total: total, rounds: scoreboard, fast: fastMode, longestRun: run, lowestPoint: lowestPoint, dayStreak: stats.dayStreak || 1, queenLost: queenLost };
+
+  const earnedNow = BADGES.filter(b => b.test(gameSummary) || forcedBadges.includes(b.id)).map(b => {
+    const before = badgeCount(stats, b.id);
+    const saved = stats.badges[b.id];
+    const firstDay = typeof saved === "string" ? saved : saved ? saved.first : dayString(0);
+    stats.badges[b.id] = { first: firstDay, count: before + 1 };
+    return { badge: b, before: before, after: before + 1 };
+  });
+  if (savingScores) writeStats(stats);
+
+  const announcements = [];
+  earnedNow.forEach(e => {
+    if (e.before === 0) {
+      announcements.push(`New badge: ${e.badge.icon} ${e.badge.name}!`);
+    } else if (rarityLevel(e.after) > rarityLevel(e.before)) {
+      announcements.push(`${e.badge.icon} ${e.badge.name} is now ${RARITY_NAMES[rarityLevel(e.after)]}!`);
+    }
+  });
+  const newBadgeLines = announcements.map(text => `<p class="bestline new">${text}</p>`).join("");
 
   document.getElementById("game").hidden = true;
-  document.querySelector("main").classList.add("summary");     // narrow column again
+  document.querySelector("main").classList.add("summary");
   const final = document.getElementById("final");
   final.hidden = false;
 
@@ -868,14 +1161,15 @@ function showFinalScreen() {
 
   final.innerHTML =
     `<div class="big">${total}<span style="font-size:1.2rem;color:var(--mu)"> / ${MAX_SCORE}</span></div>` +
-    `<p style="font-size:1.4rem;font-weight:800;margin:6px 0 4px">${title}</p>` + bestLine +
+    `<p style="font-size:1.4rem;font-weight:800;margin:6px 0 4px">${title}</p>` + bestLine + newBadgeLines + `<p class="bestline" id="statline"></p>` +
     `<div id="final-fruit">${fruitBasket()}</div>` +
-    scoreGraph() + rows +
+    scoreGraph() +
+    `<h3 class="shelf-title" id="shelf-title"></h3><div class="shelf" id="shelf"></div>` + rows +
     `<p style="margin-top:24px"><button id="again">Play again</button></p>`;
 
+  drawShelf(stats, earnedNow);
   fillYuzu(document.getElementById("final-fruit"), Math.round(Math.max(0, Math.min(1, share)) * MAX_FRUIT_SLICES), total < 0);
 
-  // "Solutions" button = every legal move ranked from worst to best
   final.querySelectorAll("[data-i]").forEach(btn => {
     btn.onclick = () => {
       const i = Number(btn.dataset.i);
@@ -900,9 +1194,6 @@ function showFinalScreen() {
 
   document.getElementById("again").onclick = () => location.reload();
 
-  // after a short pause the fruits rain down on the capybara, then maybe a special screen
-  // the capybara waits next to the summary. on a phone there's no room beside it,
-  // so there the summary just fades out for a moment instead
   const special = total === MAX_SCORE ? "gold" : total === MIN_SCORE ? "gloom" : null;
   if (!parkBesidePanel() && !reducedMotion) final.classList.add("feasting");
   setTimeout(() => {
@@ -910,24 +1201,26 @@ function showFinalScreen() {
       final.classList.remove("feasting");
       if (special) showSpecial(special, total);
       else sfx.play("jingle");
+      if (announcements.length) setTimeout(() => sfx.play("badge"), 600);
     });
   }, 600);
 }
 
-// ---------- go! ----------
+// start
 
 async function loadPuzzles() {
   try {
     const response = await fetch("positions.json");
     puzzles = await response.json();
-    puzzles.sort(() => Math.random() - 0.5);     // shuffle (not a perfect shuffle but fine)
+    puzzles.sort(() => Math.random() - 0.5);  // not a perfect shuffle but fine
 
     drawBoard();
     setEvalBar(evalBeforeMove());
     showScore(0);
     showBest();
+    showRun();
     capyMood(0);
-    startClock();
+    showClockFull();
   } catch (err) {
     document.getElementById("status").textContent =
       "Could not load positions.json. Run a local server or check the file is next to index.html.";
@@ -936,15 +1229,17 @@ async function loadPuzzles() {
 }
 loadPuzzles();
 
-// ---------- sound on/off + button clicks ----------
 const muteButton = document.getElementById("mute");
 muteButton.textContent = sfx.isMuted() ? "🔇" : "🔊";
 muteButton.onclick = () => {
   const nowMuted = sfx.toggle();
   muteButton.textContent = nowMuted ? "🔇" : "🔊";
 };
-// every other button gets a little click
 document.addEventListener("click", e => {
   const btn = e.target.closest("button");
   if (btn && btn.id !== "mute") sfx.play("ui");
 });
+
+document.getElementById("play").onclick = () => {
+  if (puzzles.length) startGame();
+};

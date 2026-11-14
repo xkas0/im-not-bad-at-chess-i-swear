@@ -1,15 +1,18 @@
+/* I Swear I'm Good at Chess */
+
+/* scene size: the scenery is sized off this */
 html { --s: clamp(300px, 58vh, 640px); }
 
 :root {
   --bg: #0a0c16;
   --panel: #161a2b;
-  --lt: #5d6b8c;      /* light square */
-  --dk: #34405d;      /* dark square */
+  --lt: #5d6b8c;  /* light square */
+  --dk: #34405d;  /* dark square */
   --tx: #e8ecf8;
-  --mu: #8c97b5;      /* muted text */
+  --mu: #8c97b5;  /* muted text */
 }
 
-/* tier colours, set as --tc. 0 = worst move (gold) ... 5 = ran out of time */
+/* tier colours (--tc). 0 = worst move (gold) ... 5 = out of time */
 .t0 { --tc: #ffc83d; }
 .t1 { --tc: #ff4d6d; }
 .t2 { --tc: #ff8a3d; }
@@ -29,8 +32,6 @@ body {
   color-scheme: dark;
 }
 
-/* the column grows with the window height so the board gets bigger on big screens,
-   but never wider than it is tall (header + clock need roughly 260px) */
 main {
   position: relative;
   z-index: 1;
@@ -53,7 +54,7 @@ h1 {
 .tag, #status, #clocktext { text-shadow: 0 1px 3px #000, 0 0 10px #000; }
 #status { color: var(--mu); margin: 16px 0 0; }
 
-/* round progress dots */
+/* round dots */
 #dots { display: flex; gap: 6px; margin-bottom: 14px; }
 #dots i {
   flex: 1;
@@ -63,7 +64,7 @@ h1 {
 }
 #dots i.on { outline: 2px solid var(--tx); outline-offset: 2px; }
 
-/* ---------- board + eval bar ---------- */
+/* board and eval bar */
 #boardwrap {
   display: flex;
   gap: 10px;
@@ -88,7 +89,7 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(18px, 8.7cqw, 90px);     /* cqw = percent of the board's width, so pieces grow with it */
+  font-size: clamp(18px, 8.7cqw, 90px);
   line-height: 1;
   cursor: pointer;
 }
@@ -102,7 +103,7 @@ h1 {
 .sel { box-shadow: inset 0 0 0 4px #ffc83d; }
 .mv { box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--tc) 60%, transparent); }
 
-/* legal move hints, like chess.com: dot for empty squares, ring for captures */
+/* legal move hints, like chess.com */
 .dot::after {
   content: "";
   position: absolute;
@@ -130,7 +131,7 @@ h1 {
   overflow: hidden;
   box-shadow: 0 14px 0 -4px #05060c;
 }
-.evalbar::before {              /* the zero line */
+.evalbar::before {  /* the zero line */
   content: "";
   position: absolute;
   left: 0; right: 0; top: 50%;
@@ -139,7 +140,7 @@ h1 {
   z-index: 1;
 }
 .evalbar i { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; }
-/* when black is at the bottom of the board, white's share of the bar hangs from the top instead */
+
 .evalbar.flipped i { top: 0; bottom: auto; }
 .evalbar.flipped b { top: 4px; bottom: auto; }
 .evalbar b {
@@ -152,7 +153,7 @@ h1 {
   mix-blend-mode: difference;
 }
 
-/* ---------- stomp animation when you move ---------- */
+/* stomp and shake when you move */
 .stomp { animation: stomp .28s cubic-bezier(.5, 0, 1, .6); z-index: 3; }
 @keyframes stomp {
   0%   { transform: translateY(-70px) scale(2.4); }
@@ -176,7 +177,7 @@ h1 {
   left: var(--x); top: var(--y);
   width: 30px; height: 30px;
   border: 6px solid var(--tc);
-  border-radius: 46% 54% 41% 59% / 52% 40% 60% 48%;   /* wobbly, not a perfect circle */
+  border-radius: 46% 54% 41% 59% / 52% 40% 60% 48%;  /* wobbly, not a perfect circle */
   filter: blur(1.5px);
   animation: ring .7s .2s ease-out both;
   opacity: 0;
@@ -208,7 +209,7 @@ h1 {
   .stomp, .shake { animation: none; }
 }
 
-/* ---------- popup after each move ---------- */
+/* popup after each move */
 #overlay {
   position: fixed;
   inset: 0;
@@ -229,7 +230,6 @@ h1 {
 }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } }
 
-/* the outlines are so the text stays readable on any background (there is no panel behind it) */
 .n {
   font-size: clamp(4.5rem, 20vw, 8rem);
   font-weight: 800;
@@ -252,7 +252,7 @@ h1 {
 }
 #next { pointer-events: auto; margin-top: 10px; animation: pop .3s cubic-bezier(.3, 1.6, .5, 1); }
 
-/* ---------- buttons ---------- */
+/* buttons */
 button {
   font: inherit;
   font-weight: 800;
@@ -273,7 +273,7 @@ button.ghost {
 }
 button.ghost:hover { background: #ffffff38; }
 
-/* ---------- final screen ---------- */
+/* final screen */
 #final {
   padding: 22px 20px 26px;
   margin-bottom: 24px;
@@ -357,7 +357,7 @@ button.ghost:hover { background: #ffffff38; }
   .gd { animation: none; opacity: 1; }
 }
 
-/* ---------- yuzu fruit ---------- */
+/* yuzu fruit */
 .fruit-row { display: flex; justify-content: center; gap: 10px; margin: 2px 0 4px; }
 .yuzu {
   width: clamp(54px, 15vw, 84px);
@@ -375,12 +375,10 @@ button.ghost:hover { background: #ffffff38; }
 .sour .rind { fill: #7fb530; }
 .sour .slice.on { fill: #a8d44a; }
 
-/* fruit on the final screen */
 #final-fruit { margin: 0 0 4px; }
 #final-fruit .fruit-row { justify-content: flex-start; }
 #final-fruit .yuzu { width: 64px; }
 
-/* little fruit next to the score at the top */
 #score-fruit { display: inline-flex; vertical-align: middle; margin-left: 10px; }
 #score-fruit .fruit-row { margin: 0; gap: 3px; }
 #score-fruit .yuzu { width: 28px; filter: drop-shadow(0 2px 0 #1b1020); }
@@ -388,7 +386,7 @@ button.ghost:hover { background: #ffffff38; }
 @keyframes popfruit { from { transform: scale(1.35) rotate(-8deg); } }
 @media (prefers-reduced-motion: reduce) { #score-fruit.pop .yuzu { animation: none; } }
 
-/* ---------- falling chess pieces (rain.js) ---------- */
+/* falling pieces (rain.js) */
 #rain { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; filter: blur(2px); }
 .fall { position: absolute; top: 0; color: #8c97b5; opacity: .28; line-height: 1; will-change: transform; }
 .shard {
@@ -399,7 +397,7 @@ button.ghost:hover { background: #ffffff38; }
   clip-path: polygon(0 100%, 50% 0, 100% 80%);
 }
 
-/* ---------- scenery: sky / hills / ground / bushes + capybara ---------- */
+/* scenery */
 #world {
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -409,7 +407,7 @@ button.ghost:hover { background: #ffffff38; }
   overflow: hidden;
   background: linear-gradient(#64a6f0 0%, #93d4fb 35%, #bae6fc 55%, #bae6fc 100%);
   filter: brightness(.82);
-  /* top of the scene fades into the page background */
+
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 42%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 42%);
 }
@@ -423,9 +421,10 @@ button.ghost:hover { background: #ffffff38; }
 #world .sky    { top: calc(var(--s) * .4); height: calc(var(--s) * .236); background-image: url(assets/bg-sky.webp); }
 #world .hills  { top: calc(var(--s) * .4); height: calc(var(--s) * .736); background-image: url(assets/bg-hills.webp); }
 #world .ground { bottom: 0; height: calc(var(--s) * .295); background-image: url(assets/bg-ground.webp); }
-/* bushes sit a bit lower than the top of the ground so they cover the seam */
+
 #world .bushes { bottom: calc(var(--s) * .295 - var(--s) * .02); height: calc(var(--s) * .23); background-image: url(assets/bg-bushes.webp); }
 
+/* capybara */
 #cap {
   position: absolute;
   bottom: calc(var(--s) * .2);
@@ -439,7 +438,7 @@ button.ghost:hover { background: #ffffff38; }
 }
 #cap.flip { transform: translateX(-50%) scaleX(-1); }
 
-/* ---------- the clock, down in the dirt ---------- */
+/* clock at the bottom */
 #timer {
   position: fixed;
   left: 50%;
@@ -501,8 +500,7 @@ button.ghost:hover { background: #ffffff38; }
 }
 @media (prefers-reduced-motion: reduce) { #clockfill.low { animation: none; } }
 
-
-/* ---------- feast: fruit falling into the capybara ---------- */
+/* feast, fruit falling into the capybara */
 .flyfruit { position: fixed; left: 0; top: 0; width: 56px; z-index: 30; pointer-events: none; filter: drop-shadow(0 3px 0 #1b1020); }
 .flyfruit .yuzu { width: 100%; display: block; }
 .splat {
@@ -510,13 +508,13 @@ button.ghost:hover { background: #ffffff38; }
   width: 90px; height: 50px; border-radius: 50%;
   background: radial-gradient(#b6d94a, #6a8f1f 70%, transparent 72%);
 }
-/* the individual scale / rotate properties stack on top of the transform that centres the capybara */
+
 #cap.chomp  { animation: chomp .28s ease-out; }
 #cap.recoil { animation: recoil .45s ease-out; }
 @keyframes chomp  { 40% { scale: 1.1 .9; } }
 @keyframes recoil { 25% { rotate: -9deg; translate: -10px 0; } 60% { rotate: 4deg; } }
 
-/* ---------- the 800 / -800 screens ---------- */
+/* 800 and -800 screens */
 #special {
   position: fixed; inset: 0; z-index: 40;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -564,7 +562,7 @@ button.ghost:hover { background: #ffffff38; }
   #cap.chomp, #cap.recoil, #special .rays, #special.gold .spcap { animation: none; }
 }
 
-/* ---------- mute button ---------- */
+/* mute button */
 #mute {
   position: fixed; top: 12px; right: 12px; z-index: 50;
   width: 44px; height: 44px; padding: 0; border-radius: 50%;
@@ -573,17 +571,91 @@ button.ghost:hover { background: #ffffff38; }
 }
 #mute:hover { background: #ffffff38; }
 
-/* summary panel fades away while the fruits fall so you can see the capybara */
 #final { transition: opacity .4s; }
 main.summary { max-width: 520px; }
 #final.feasting { opacity: 0; pointer-events: none; }
 
 /* dev panel (only with ?dev) */
-#devpanel { position: fixed; left: 8px; top: 8px; z-index: 60; display: flex; gap: 6px; align-items: center;
-  background: #000a; padding: 6px 8px; border-radius: 10px; color: #fff; font-size: .8rem; }
+#devpanel { position: fixed; left: 8px; top: 8px; z-index: 60; width: 300px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  background: #000c; padding: 8px; border-radius: 10px; color: #fff; font-size: .8rem; }
 #devpanel button { padding: 4px 10px; font-size: .8rem; }
+#devpanel select, #devpanel input[type=number] { font: inherit; font-size: .8rem; padding: 3px; border-radius: 6px; max-width: 150px; }
+#devpanel input[type=number] { width: 56px; }
+#devpanel hr { flex-basis: 100%; border: 0; border-top: 1px solid #ffffff33; margin: 2px 0; }
 
-/* ---------- best score ---------- */
+/* best score */
 #best { margin-left: 14px; font-size: .85rem; color: #ffc83d; }
 .bestline { margin: 0 0 10px; color: var(--mu); font-weight: 600; }
 .bestline.new { color: #ffc83d; font-weight: 800; }
+
+/* panic switch next to the clock */
+#panic {
+  pointer-events: auto;  /* the timer ignores clicks, this one doesn't */
+  flex: none;
+  padding: 5px 12px; font-size: .78rem; white-space: nowrap;
+  background: #05060ccc; color: #fff; border: 2px solid #ffffff55;
+}
+#panic.on { background: #ff4d6d; border-color: #fff; animation: panicshake .25s infinite; }
+#panic:disabled { pointer-events: none; opacity: .75; animation: none; }
+@keyframes panicshake { 25% { transform: translate(1px, -1px) rotate(1deg); } 75% { transform: translate(-1px, 1px) rotate(-1deg); } }
+@media (prefers-reduced-motion: reduce) { #panic.on { animation: none; } }
+#run { margin-left: 14px; font-size: .85rem; color: #ff8a3d; font-weight: 800; }
+
+/* punishment shouts and flashes */
+.boardflash { position: absolute; inset: 0; background: #fff; border-radius: 14px; }
+.shout {
+  position: absolute; left: 50%; top: 42%;
+  font-size: clamp(1.1rem, 6cqw, 2rem); font-weight: 800; line-height: 1.05;
+  text-align: center; white-space: nowrap; color: #fff;
+  -webkit-text-stroke: 8px #05060c; paint-order: stroke fill; text-shadow: 0 5px 0 #05060c;
+}
+.shout.big { font-size: clamp(1.4rem, 9cqw, 4rem); color: #ff4d6d; -webkit-text-stroke: 12px #05060c; }
+
+/* badges on the final screen */
+.shelf-title { margin: 18px 0 8px; font-size: 1rem; }
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.badge-chip {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px; border-radius: 12px;
+  background: #ffffff0d; border: 1px solid #ffffff1a; opacity: .55;
+}
+.badge-chip .bi { font-size: 1.3rem; filter: grayscale(1); }
+.badge-chip b { font-size: .85rem; }
+.badge-chip small { color: var(--mu); font-size: .72rem; line-height: 1.2; }
+.badge-chip.got { opacity: 1; background: #ffc83d1f; border-color: #ffc83d66; }
+.badge-chip.got .bi { filter: none; }
+.badge-chip.new { animation: pop .6s cubic-bezier(.3, 1.6, .5, 1) 1s both; box-shadow: 0 0 18px #ffc83d88; }
+
+.badge-chip { position: relative; }
+
+/* badge rarity colours */
+.badge-chip.r0 { --rc: #9aa3bd; }
+.badge-chip.r1 { --rc: #3dd68f; }
+.badge-chip.r2 { --rc: #4da3ff; }
+.badge-chip.r3 { --rc: #b56bff; }
+.badge-chip.r4 { --rc: #ffc83d; }
+.badge-chip.got { background: color-mix(in srgb, var(--rc) 16%, transparent); border-color: color-mix(in srgb, var(--rc) 70%, transparent); }
+.badge-chip.new { box-shadow: 0 0 18px color-mix(in srgb, var(--rc) 70%, transparent); }
+.badge-chip.r4 { animation: shimmer 2.4s ease-in-out infinite; }
+.badge-chip.r4.new { animation: pop .6s cubic-bezier(.3, 1.6, .5, 1) 1s both; }
+.rarity { color: var(--rc); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.count { position: absolute; top: 8px; right: 10px; font-size: .75rem; font-weight: 800; color: var(--mu); }
+.badge-chip.got .count { color: var(--rc); }
+.plus { position: absolute; bottom: 8px; right: 10px; font-style: normal; font-size: .75rem; font-weight: 800; color: #7dffb0; }
+.badge-chip.again small { padding-right: 24px; }
+@keyframes shimmer { 50% { box-shadow: 0 0 14px #ffc83d66; } }
+@media (prefers-reduced-motion: reduce) { .badge-chip.r4 { animation: none; } }
+
+/* play button over the blurred board */
+#boardarea { position: relative; }
+#boardwrap.waiting { filter: blur(24px); pointer-events: none; user-select: none; }
+#gate {
+  position: absolute; inset: 0; z-index: 6;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 20px; text-align: center;
+}
+#gate button { font-size: 1.7rem; padding: .5em 2.2em; }
+#gate p {
+  margin: 0; max-width: 17em; font-weight: 800; color: #fff;
+  -webkit-text-stroke: 6px #05060c; paint-order: stroke fill; text-shadow: 0 3px 0 #05060c;
+}
