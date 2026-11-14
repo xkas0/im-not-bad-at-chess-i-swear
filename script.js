@@ -28,6 +28,29 @@ let landingEl = null;
 let glow = {};                // square name -> tier number, tints your move
 let clockTimer = null;
 
+// ---------- high score (saved in the browser, so it's per person per device) ----------
+
+// dev mode plays fake games, those shouldn't touch the real high score
+const savingScores = !location.search.includes("dev");
+
+function readBest() {
+  try {
+    const saved = localStorage.getItem("bestScore");
+    return saved === null ? null : Number(saved);
+  } catch (e) {
+    return null;          // storage blocked, just act like there's no score yet
+  }
+}
+
+function saveBest(score) {
+  try { localStorage.setItem("bestScore", String(score)); } catch (e) { /* oh well */ }
+}
+
+function showBest() {
+  const best = readBest();
+  document.getElementById("best").textContent = best === null ? "" : "Best " + best;
+}
+
 // ---------- chess helpers ----------
 
 // "rnbq1k.../..." -> 8x8 grid of letters (null = empty) + whose turn it is
@@ -820,6 +843,13 @@ function showFinalScreen() {
   const band = FINAL_TITLES.find(b => share >= b[0]);
   const title = pickQuip(band[1], "final");
 
+  const oldBest = readBest();
+  const isNewBest = oldBest === null || total > oldBest;
+  if (isNewBest && savingScores) saveBest(total);
+  const bestLine = isNewBest
+    ? `<p class="bestline new">New best score!</p>`
+    : `<p class="bestline">Your best: ${oldBest}</p>`;
+
   document.getElementById("game").hidden = true;
   document.querySelector("main").classList.add("summary");     // narrow column again
   const final = document.getElementById("final");
@@ -838,7 +868,7 @@ function showFinalScreen() {
 
   final.innerHTML =
     `<div class="big">${total}<span style="font-size:1.2rem;color:var(--mu)"> / ${MAX_SCORE}</span></div>` +
-    `<p style="font-size:1.4rem;font-weight:800;margin:6px 0 10px">${title}</p>` +
+    `<p style="font-size:1.4rem;font-weight:800;margin:6px 0 4px">${title}</p>` + bestLine +
     `<div id="final-fruit">${fruitBasket()}</div>` +
     scoreGraph() + rows +
     `<p style="margin-top:24px"><button id="again">Play again</button></p>`;
@@ -895,6 +925,7 @@ async function loadPuzzles() {
     drawBoard();
     setEvalBar(evalBeforeMove());
     showScore(0);
+    showBest();
     capyMood(0);
     startClock();
   } catch (err) {

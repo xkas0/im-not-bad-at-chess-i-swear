@@ -582,3 +582,8 @@ main.summary { max-width: 520px; }
 #devpanel { position: fixed; left: 8px; top: 8px; z-index: 60; display: flex; gap: 6px; align-items: center;
   background: #000a; padding: 6px 8px; border-radius: 10px; color: #fff; font-size: .8rem; }
 #devpanel button { padding: 4px 10px; font-size: .8rem; }
+
+/* ---------- best score ---------- */
+#best { margin-left: 14px; font-size: .85rem; color: #ffc83d; }
+.bestline { margin: 0 0 10px; color: var(--mu); font-weight: 600; }
+.bestline.new { color: #ffc83d; font-weight: 800; }
