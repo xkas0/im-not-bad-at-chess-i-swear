@@ -52,7 +52,10 @@ h1 {
 
 .tag { color: var(--mu); margin: 10px 0 18px; }
 .tag, #status, #clocktext { text-shadow: 0 1px 3px #000, 0 0 10px #000; }
-#status { color: var(--mu); margin: 16px 0 0; }
+#status { color: #fff; margin: 16px 0 0; font-weight: 600; }
+.turn { display: inline-block; padding: 1px 12px; border-radius: 99px; font-weight: 800; text-shadow: none; }
+.turn.white { background: #fff; color: #05060c; }
+.turn.black { background: #05060c; color: #fff; box-shadow: 0 0 0 2px #fff; }
 
 /* round dots */
 #dots { display: flex; gap: 6px; margin-bottom: 14px; }

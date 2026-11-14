@@ -263,7 +263,8 @@ function drawBoard() {
   }
 
   const who = turn === "w" ? "White" : "Black";
-  document.getElementById("status").textContent = frozen ? "" : who + " to move. Click a piece, then its destination.";
+  document.getElementById("status").innerHTML = frozen ? "" :
+    `<span class="turn ${who.toLowerCase()}">${who}</span> to move. Click a piece, then its destination.`;
   drawRoundDots();
   drawModeButtons();
 }
