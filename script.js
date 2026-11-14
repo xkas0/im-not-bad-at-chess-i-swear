@@ -1,7 +1,3 @@
-// I Swear I'm Good at Chess
-// The puzzles come from positions.json (made by magic_generator.py).
-// Every legal move in there already has a stockfish score, so no engine needed here.
-
 const PIECE_ICONS = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" };
 const FILES = "abcdefgh";
 const HOW_MANY_ROUNDS = 8;
@@ -143,6 +139,7 @@ function drawBoard() {
   landingEl = null;
 
   const flip = turn === "b";    // always show the board from the mover's side
+  document.querySelector(".evalbar").classList.toggle("flipped", flip);   // bar turns around with the board
 
   // squares the picked piece can go to (the little dots / rings)
   let targets = new Set();

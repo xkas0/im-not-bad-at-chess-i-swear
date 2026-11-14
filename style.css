@@ -1,6 +1,3 @@
-/* I Swear I'm Good at Chess - styles */
-
-/* "scene size": the background scenery is sized off this so it scales with the window */
 html { --s: clamp(300px, 58vh, 640px); }
 
 :root {
@@ -142,6 +139,9 @@ h1 {
   z-index: 1;
 }
 .evalbar i { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; }
+/* when black is at the bottom of the board, white's share of the bar hangs from the top instead */
+.evalbar.flipped i { top: 0; bottom: auto; }
+.evalbar.flipped b { top: 4px; bottom: auto; }
 .evalbar b {
   position: absolute;
   left: 0; right: 0; bottom: 4px;
