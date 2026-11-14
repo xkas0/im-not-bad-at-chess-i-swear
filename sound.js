@@ -5,19 +5,42 @@ const sfx = (function () {
 
   // ---- background music: a looping track, kept really quiet ----
   const MUSIC_FILE = "assets/CapyHapySoundtrack.mp3";   
-  const MUSIC_VOLUME = 0.07;                            // 0 to 1.
+  const MUSIC_VOLUME = 0.07;                            // 0 to 1. 
   const music = new Audio(MUSIC_FILE);
   music.loop = true;
   music.volume = 0;
   let fadeTimer = null;
+  let musicGain = null;       
+  let musicLevel = 0;
+
+  function plugMusicIn() {
+    const c = wake();
+    if (!c || musicGain) return;
+    try {
+      const source = c.createMediaElementSource(music);
+      musicGain = c.createGain();
+      musicGain.gain.value = musicLevel;
+      music.volume = 1;
+      source.connect(musicGain).connect(c.destination);
+    } catch (e) {
+      musicGain = null;       
+    }
+  }
+
+  function setMusicLevel(v) {
+    musicLevel = v;
+    if (musicGain) musicGain.gain.value = v;
+    else music.volume = v;
+  }
 
   function startMusic() {
     if (muted) return;
+    plugMusicIn();
     music.play().catch(() => { /* browser said no (or file missing), no big deal */ });
     clearInterval(fadeTimer);
     fadeTimer = setInterval(() => {         // fade in over a few seconds so it sneaks up on you
-      music.volume = Math.min(MUSIC_VOLUME, music.volume + MUSIC_VOLUME / 30);
-      if (music.volume >= MUSIC_VOLUME) clearInterval(fadeTimer);
+      setMusicLevel(Math.min(MUSIC_VOLUME, musicLevel + MUSIC_VOLUME / 30));
+      if (musicLevel >= MUSIC_VOLUME) clearInterval(fadeTimer);
     }, 100);
   }
 
@@ -32,6 +55,9 @@ const sfx = (function () {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return null;
       ctx = new AudioCtx();
+      ctx.onstatechange = function () {
+        if (ctx.state !== "running" && ctx.state !== "closed") ctx.resume().catch(() => {});
+      };
     }
     if (ctx.state === "suspended") ctx.resume();
     return ctx;
@@ -57,7 +83,7 @@ const sfx = (function () {
     osc.stop(start + length + 0.05);
   }
 
-  // a burst of static-thumps, splats and crunches
+  // a burst of static- thumps, splats and crunches
   function noise(length, opts) {
     const c = wake();
     if (!c || muted) return;
