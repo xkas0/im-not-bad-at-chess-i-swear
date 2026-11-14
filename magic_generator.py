@@ -1,6 +1,6 @@
 # makes positions.json: random positions + a stockfish score for every legal move
 # py magic_generator.py = 2000 positions, py magic_generator.py 50 = quick test
-# ctrl+c is fine, it saves what it has
+# ctrl+c
 import json
 import random
 import sys
@@ -12,7 +12,7 @@ import chess.engine
 ENGINE_PATH = r"stockfish\stockfish-windows-x86-64-universal.exe"
 HOW_MANY_POSITIONS = int(sys.argv[1]) if len(sys.argv) > 1 else 2000
 SECONDS_PER_POSITION = 0.5
-THREADS = 4                  # more threads = faster. lower it if your pc starts crying
+THREADS = 4                  # more threads = faster. 
 SAVE_EVERY = 100
 OUTPUT_FILE = "positions.json"
 

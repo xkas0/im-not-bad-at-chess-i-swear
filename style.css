@@ -37,7 +37,7 @@ main {
   z-index: 1;
   max-width: clamp(520px, calc(100vh - 260px), 820px);
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 24px 16px 64px;
 }
 
 h1 {
@@ -446,7 +446,7 @@ button.ghost:hover { background: #ffffff38; }
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(var(--s) * .028);
+  bottom: calc(var(--s) * .028 + 22px);
   width: min(440px, 84vw);
   height: calc(var(--s) * .085);
   min-height: 30px;
@@ -661,4 +661,12 @@ main.summary { max-width: 520px; }
 #gate p {
   margin: 0; max-width: 17em; font-weight: 800; color: #fff;
   -webkit-text-stroke: 6px #05060c; paint-order: stroke fill; text-shadow: 0 3px 0 #05060c;
+}
+
+/* footer */
+footer {
+  position: fixed; left: 0; right: 0; bottom: 5px; z-index: 3;
+  font-size: clamp(.6rem, 2.6vw, .75rem); font-weight: 600; color: #fff; text-align: center;
+  text-shadow: 0 1px 2px #000, 0 0 6px #000, 0 0 12px #000;
+  pointer-events: none;
 }
