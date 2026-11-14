@@ -3,206 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Worst Move</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&display=swap">
-<style>
-:root{--bg:#15122e;--panel:#211d49;--lt:#5a52a3;--dk:#3a3478;--tx:#f2efff;--mu:#a59fd6}
-.t0{--tc:#ffc83d}.t1{--tc:#ff4d6d}.t2{--tc:#ff8a3d}.t3{--tc:#3dd6d0}.t4{--tc:#8f8bd1}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--tx);font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:500;color-scheme:dark}
-main{max-width:520px;margin:0 auto;padding:24px 16px 48px}
-h1{font-size:2.4rem;font-weight:800;margin:0;letter-spacing:-.03em;transform:rotate(-2deg)}
-.tag{color:var(--mu);margin:4px 0 18px}
-#dots{display:flex;gap:6px;margin-bottom:14px}
-#dots i{flex:1;height:8px;border-radius:9px;background:var(--panel);background:color-mix(in srgb,var(--tc,#2d2860),#2d2860 0%)}
-#dots i.on{outline:2px solid var(--tx);outline-offset:2px}
-#board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border-radius:14px;overflow:hidden;box-shadow:0 14px 0 -4px #0c0a1d}
-.sq{position:relative;display:flex;align-items:center;justify-content:center;font-size:min(9vw,48px);line-height:1;cursor:pointer}
-.l{background:var(--lt)}.d{background:var(--dk)}
-.pc{position:relative;z-index:2}
-.w{color:#fff;text-shadow:0 0 2px #0c0a1d,0 0 2px #0c0a1d,0 2px 0 #0c0a1d}
-.b{color:#0c0a1d;text-shadow:0 0 2px #cfc9ff,0 0 1px #cfc9ff}
-.sel{box-shadow:inset 0 0 0 4px #ffc83d}
-.me{box-shadow:inset 0 0 0 4px #3dd6d0}
-.wo{box-shadow:inset 0 0 0 4px #ff4d6d}
-.stomp{animation:stomp .28s cubic-bezier(.5,0,1,.6);z-index:3}
-.wave{position:absolute;left:50%;top:50%;width:40px;height:40px;border:3px solid var(--tc);border-radius:50%;pointer-events:none;animation:wave .7s .22s ease-out both;opacity:0;z-index:4}
-.shake{animation:shake .5s .26s}
-@keyframes stomp{0%{transform:translateY(-70px) scale(2.4)}70%{transform:scale(1.25,.7)}100%{transform:none}}
-@keyframes wave{from{transform:translate(-50%,-50%) scale(.2);opacity:.9}to{transform:translate(-50%,-50%) scale(10);opacity:0}}
-@keyframes shake{0%,100%{transform:none}15%{transform:translate(var(--a),calc(var(--a)*-.6)) rotate(.4deg)}30%{transform:translate(calc(var(--a)*-1),calc(var(--a)*.5))}50%{transform:translate(calc(var(--a)*.7),calc(var(--a)*.4))}70%{transform:translate(calc(var(--a)*-.4),calc(var(--a)*-.3))}}
-@media(prefers-reduced-motion:reduce){.stomp,.wave,.shake{animation:none}}
-#status{color:var(--mu);margin:16px 0 0}
-.res{margin-top:16px;padding:16px;border-radius:14px;background:var(--panel)}
-.badge{display:inline-block;padding:.15em .75em;border-radius:99px;font-weight:800;background:var(--tc);color:#15122e}
-.pts{float:right;font-weight:800;font-size:1.6rem;color:var(--tc)}
-.bar{height:8px;border-radius:9px;background:#15122e;margin:12px 0}
-.bar i{display:block;height:100%;border-radius:9px;background:var(--tc)}
-button{font:inherit;font-weight:800;color:#15122e;background:var(--tx);border:0;border-radius:99px;padding:.6em 1.4em;cursor:pointer}
-button:focus-visible{outline:3px solid #ffc83d;outline-offset:3px}
-button.ghost{background:none;color:var(--mu);padding:.2em .6em;font-weight:500;text-decoration:underline}
-.big{font-size:4rem;font-weight:800;line-height:1;letter-spacing:-.04em}
-.row{display:grid;grid-template-columns:1.5em 1fr auto auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--panel)}
-.row .badge{font-size:.8rem}
-.sol{margin:0 0 8px;padding:10px 14px;list-style:none;background:var(--panel);border-radius:10px;font-size:.9rem;max-height:260px;overflow:auto}
-.sol li{display:flex;justify-content:space-between;padding:3px 0;color:var(--tc)}
-.sol li.you{font-weight:800;color:var(--tx)}
-</style>
+<title>I Swear I’m Good at Chess</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;800&display=swap">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="rain"></div>
+<div id="world"><div class="ly sky"></div><div class="ly hills"></div><div class="ly ground"></div><div class="ly bushes"></div><div id="cap"></div></div>
 <main>
-  <h1>Worst Move</h1>
+  <h1>I Swear I’m Good at Chess</h1>
   <p class="tag">Find the move that loses the most.</p>
   <section id="game">
+    <p class="tag" style="margin:0 0 6px">Score <b id="score">0</b><span id="score-fruit"></span></p>
     <div id="dots"></div>
-    <div id="board"></div>
+    <div id="boardwrap">
+      <div class="evalbar"><i id="evalfill"></i><b id="evaltext">0.0</b></div>
+      <div id="boardbox"><div id="board"></div><div id="fx"></div></div>
+    </div>
+    <div id="timer"><svg class="crown" viewBox="0 0 48 40" aria-hidden="true"><path d="M5 34 L2 10 L15 20 L24 4 L33 20 L46 10 L43 34 Z" fill="#ffc83d" stroke="#1b1020" stroke-width="3.5" stroke-linejoin="round"/><circle cx="24" cy="4.5" r="3" fill="#ff4d6d" stroke="#1b1020" stroke-width="2"/></svg>
+      <div class="track"><i id="clockfill"></i></div><b id="clocktext">30s</b></div>
     <p id="status"></p>
-    <div id="result"></div>
   </section>
   <section id="final" hidden></section>
 </main>
-<script>
-const SYM={p:"♟",n:"♞",b:"♝",r:"♜",q:"♛",k:"♚"}, F="abcdefgh", ROUNDS=8;
-const TIERS=["Peak blunder","Disaster","Ugly","Meh","Suspiciously sensible"];
-const AMP=[16,11,8,5,3];
-let positions=[], round=0, selected=null, locked=false, results=[], over=null, stomp=null, hl={}, waveTier=0;
-
-const clamp=v=>Math.max(-1000,Math.min(1000,v));
-function parseFen(fen){
-  const [pl,turn]=fen.split(" ");
-  const grid=pl.split("/").map(r=>{const c=[];for(const ch of r){/\d/.test(ch)?c.push(...Array(+ch).fill(null)):c.push(ch)}return c});
-  return {grid,turn};
-}
-const sqName=(r,c)=>F[c]+(8-r);
-const pieceAt=(g,n)=>g[8-n[1]][F.indexOf(n[0])];
-function rate(move,scores){
-  const v=Object.values(scores).map(clamp), best=Math.max(...v), worst=Math.min(...v);
-  const s=clamp(scores[move]), ratio=(best-s)/((best-worst)||1);
-  const t=s===worst?0:ratio>=.9?1:ratio>=.7?2:ratio>=.4?3:4;
-  return {t,ratio,points:Math.round(ratio*100)};
-}
-function label(fen,uci){
-  const p=pieceAt(parseFen(fen).grid,uci.slice(0,2));
-  return (p?SYM[p.toLowerCase()]+"\uFE0E ":"")+uci.slice(0,2)+"→"+uci.slice(2,4)+(uci[4]?"="+uci[4].toUpperCase():"");
-}
-
-function drawDots(){
-  document.getElementById("dots").innerHTML=Array.from({length:ROUNDS},(_,i)=>{
-    const r=results[i];
-    return `<i class="${r?"t"+r.t:""}${i===round&&!r?" on":""}" ${r?`style="background:var(--tc)"`:""}></i>`;
-  }).join("");
-}
-
-function drawBoard(){
-  const pos=positions[round], {grid:g0,turn}=parseFen(pos.fen), grid=over||g0;
-  const board=document.getElementById("board"); board.innerHTML="";
-  const flip=turn==="b";
-  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
-    const row=flip?7-r:r, col=flip?7-c:c, name=sqName(row,col), p=grid[row][col];
-    const sq=document.createElement("div");
-    sq.className="sq "+((row+col)%2===0?"l":"d");
-    if(p){
-      const s=document.createElement("span");
-      s.className="pc "+(p===p.toUpperCase()?"w":"b")+(name===stomp?" stomp":"");
-      s.textContent=SYM[p.toLowerCase()]+"\uFE0E"; sq.append(s);
-    }
-    if(name===selected)sq.classList.add("sel");
-    if(hl[name])sq.classList.add(hl[name]);
-    if(name===stomp){const w=document.createElement("div");w.className="wave t"+waveTier;sq.append(w)}
-    sq.onclick=()=>click(name);
-    board.append(sq);
-  }
-  document.getElementById("status").textContent=locked?"":(turn==="w"?"White":"Black")+" to move. Click a piece, then its destination.";
-  drawDots();
-}
-
-function click(name){
-  if(locked)return;
-  const {grid,turn}=parseFen(positions[round].fen), p=pieceAt(grid,name);
-  const own=p&&(p===p.toUpperCase())===(turn==="w");
-  if(selected===null){if(own){selected=name;drawBoard()}return}
-  if(name===selected){selected=null;drawBoard();return}
-  if(own){selected=name;drawBoard();return}
-  play(selected+name);
-}
-
-function play(uci){
-  const pos=positions[round], scores=pos.scores;
-  let move=uci; if(!(move in scores))move=uci+"q";
-  if(!(move in scores)){
-    document.getElementById("status").textContent="Not a legal move. Try another.";
-    selected=null; drawBoard(); return;
-  }
-  let worst=null; for(const m in scores)if(worst===null||clamp(scores[m])<clamp(scores[worst]))worst=m;
-  const info=rate(move,scores);
-  results.push({fen:pos.fen,scores,move,worst,...info});
-  locked=true; selected=null; waveTier=info.t;
-  const {grid}=parseFen(pos.fen), from=move.slice(0,2), to=move.slice(2,4);
-  over=grid.map(r=>r.slice());
-  const piece=pieceAt(grid,from);
-  over[8-to[1]][F.indexOf(to[0])]=move[4]?(piece===piece.toUpperCase()?move[4].toUpperCase():move[4]):piece;
-  over[8-from[1]][F.indexOf(from[0])]=null;
-  stomp=to; hl={[from]:"me",[to]:"me",[worst.slice(0,2)]:"wo",[worst.slice(2,4)]:"wo"};
-  drawBoard();
-  const b=document.getElementById("board");
-  b.style.setProperty("--a",AMP[info.t]+"px"); b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake");
-  setTimeout(()=>showResult(info),750);
-}
-
-function showResult(info){
-  const last=round===ROUNDS-1, res=results[round];
-  document.getElementById("result").innerHTML=
-    `<div class="res t${info.t}"><span class="pts">+${info.points}</span><span class="badge">${TIERS[info.t]}</span>
-    <div class="bar"><i style="width:${Math.max(4,info.ratio*100)}%"></i></div>
-    <p style="margin:0 0 14px;color:var(--mu)">${info.t===0?"You found the worst move. Beautiful.":"Worst was "+label(res.fen,res.worst)+" (red). You played the teal one."}</p>
-    <button id="next">${last?"See results":"Next round"}</button></div>`;
-  document.getElementById("next").onclick=()=>{last?showFinal():next()};
-}
-
-function next(){
-  round++; selected=null; locked=false; over=null; stomp=null; hl={};
-  document.getElementById("result").innerHTML="";
-  document.getElementById("board").classList.remove("shake");
-  drawBoard();
-}
-
-function showFinal(){
-  const total=results.reduce((a,r)=>a+r.points,0), pct=total/(ROUNDS*100);
-  const title=pct>=.85?"Certified menace":pct>=.65?"Natural disaster":pct>=.4?"Promising chaos":"Dangerously competent";
-  document.getElementById("game").hidden=true;
-  const f=document.getElementById("final"); f.hidden=false;
-  f.innerHTML=`<div class="big">${total}<span style="font-size:1.2rem;color:var(--mu)"> / ${ROUNDS*100}</span></div>
-    <p style="font-size:1.4rem;font-weight:800;margin:6px 0 20px">${title}</p>`+
-    results.map((r,i)=>`<div class="row t${r.t}"><span style="color:var(--mu)">${i+1}</span>
-      <span>${label(r.fen,r.move)}</span><span class="badge">${TIERS[r.t]}</span><b style="color:var(--tc)">${r.points}</b></div>
-      <div style="text-align:right"><button class="ghost" data-i="${i}">Solutions</button></div>
-      <ul class="sol" id="sol${i}" hidden></ul>`).join("")+
-    `<p style="margin-top:24px"><button id="again">Play again</button></p>`;
-  f.querySelectorAll("[data-i]").forEach(btn=>btn.onclick=()=>{
-    const i=+btn.dataset.i, ul=document.getElementById("sol"+i), r=results[i];
-    if(!ul.innerHTML){
-      ul.innerHTML=Object.keys(r.scores).sort((a,b)=>clamp(r.scores[a])-clamp(r.scores[b])||r.scores[a]-r.scores[b]).map(m=>{
-        const x=rate(m,r.scores);
-        return `<li class="t${x.t}${m===r.move?" you":""}"><span>${label(r.fen,m)}${m===r.move?" ← you":""}</span><span>${x.points}</span></li>`;
-      }).join("");
-    }
-    ul.hidden=!ul.hidden; btn.textContent=ul.hidden?"Solutions":"Hide solutions";
-  });
-  document.getElementById("again").onclick=()=>location.reload();
-}
-
-async function start(){
-  try{
-    positions=await (await fetch("positions.json")).json();
-    positions.sort(()=>Math.random()-.5);
-    drawBoard();
-  }catch(e){
-    document.getElementById("status").textContent="Could not load positions.json. Run a local server or check the file is next to index.html.";
-    console.error(e);
-  }
-}
-start();
-</script>
+<div id="overlay" hidden></div>
+<script src="script.js"></script>
+<script src="rain.js"></script>
 </body>
 </html>
